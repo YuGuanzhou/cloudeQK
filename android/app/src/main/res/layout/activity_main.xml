@@ -1,0 +1,27 @@
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/app_background" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+        <ImageView android:layout_width="88dp" android:layout_height="88dp" android:layout_gravity="center_horizontal" android:src="@drawable/ic_launcher_foreground" android:contentDescription="@string/app_name" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center" android:text="小鱼 云群控" android:textColor="@color/text_primary" android:textSize="26sp" android:textStyle="bold" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="24dp" android:gravity="center" android:text="屏幕墙 · 单控 · 群控 · 自动化" android:textColor="@color/text_secondary" android:textSize="14sp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/card_background" android:orientation="vertical" android:padding="18dp">
+            <TextView android:text="连接状态" style="@style/SectionLabel" />
+            <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="尚未连接" android:textColor="@color/status_waiting" android:textSize="17sp" android:textStyle="bold" />
+            <TextView android:id="@+id/deviceId" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:textColor="@color/text_secondary" android:textIsSelectable="true" />
+        </LinearLayout>
+        <Button android:id="@+id/settingsButton" style="@style/SecondaryButton" android:layout_marginTop="16dp" android:text="服务器设置" android:visibility="gone" />
+        <LinearLayout android:id="@+id/configCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="@drawable/card_background" android:orientation="vertical" android:padding="18dp">
+            <TextView android:text="服务器配置" style="@style/SectionLabel" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="服务器地址" android:textColor="@color/text_secondary" />
+            <EditText android:id="@+id/serverUrl" style="@style/ConfigInput" android:hint="http://192.168.1.10:3000" android:inputType="textUri" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="设备 Token" android:textColor="@color/text_secondary" />
+            <EditText android:id="@+id/deviceToken" style="@style/ConfigInput" android:hint="设备连接密钥" android:inputType="textPassword" />
+            <Button android:id="@+id/saveButton" style="@style/PrimaryButton" android:layout_marginTop="16dp" android:text="保存并重新连接" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="@drawable/card_background" android:orientation="vertical" android:padding="18dp">
+            <TextView android:text="设备授权" style="@style/SectionLabel" />
+            <Button android:id="@+id/accessibilityButton" style="@style/SecondaryButton" android:layout_marginTop="14dp" android:text="开启无障碍服务" />
+            <Button android:id="@+id/captureButton" style="@style/PrimaryButton" android:layout_marginTop="10dp" android:text="开始共享屏幕" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="录屏和远程操作只在你明确授权后启用，可随时从通知栏停止共享。" android:textColor="@color/text_secondary" android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

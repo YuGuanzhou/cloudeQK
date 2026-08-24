@@ -1,0 +1,8 @@
+{
+  "name": "device-control-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"start": "node src/index.js", "test": "node --test"},
+  "dependencies": {"express": "^5.1.0", "mysql2": "^3.14.4", "socket.io": "^4.8.1"}
+}

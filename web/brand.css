@@ -1,0 +1,11 @@
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand img { width: 48px; height: 48px; object-fit: contain; }
+.scope { margin-bottom: 22px; padding: 14px; background: #111e31; border: 1px solid #223754; border-radius: 12px; }
+.scope label { display: flex; align-items: center; gap: 8px; margin: 9px 0; }
+.scope label input { width: auto; }
+.scope select { width: 100%; }
+.group-action { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-top: 9px; }
+.group-action button { width: auto; }
+.scope .secondary { width: 100%; margin-top: 8px; background: #243955; }
+.scope .danger-link { width: 100%; margin-top: 7px; color: #ff8a99; background: transparent; border: 1px solid #6b3040; }
+.device-heading { margin-top: 4px; }

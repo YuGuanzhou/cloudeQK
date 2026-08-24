@@ -1,0 +1,27 @@
+# Node / server runtime
+server/node_modules/
+server/.env
+server/*.log
+server/data/*.json
+npm-debug.log*
+
+# Android / Gradle generated files
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/**/build/
+*.apk
+*.aab
+*.iml
+.idea/
+
+# Local tools and editor/OS files
+.tools/
+.codex-zh-compat/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Keep final handoff artifacts
+!release/
+!release/*.apk

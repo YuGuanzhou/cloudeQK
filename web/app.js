@@ -1,5 +1,8 @@
 const { createApp, computed, ref } = Vue;
 createApp({ setup() {
+  const theme = ref(localStorage.getItem("theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+  document.documentElement.dataset.theme = theme.value;
+  function toggleTheme() { theme.value = theme.value === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = theme.value; localStorage.setItem("theme", theme.value); }
   const socket = io({ auth: { role: "dashboard" } });
   const currentUser = ref({}), adminUsers = ref([]), adminDevices = ref([]), newUser = ref({ username: "", password: "", role: "user", maxDevices: 5 });
   const modal = ref({ open: false, title: "", message: "", input: false, value: "", danger: false, error: "" });
@@ -161,5 +164,5 @@ createApp({ setup() {
   }
   function removePreset(name) { presets.value = presets.value.filter(p => p.name !== name); localStorage.setItem("automation-presets", JSON.stringify(presets.value)); }
   function loadPreset(preset) { script.value = preset.source; importScript(); }
-  return { devices, groups, filteredDevices, onlineDevices, appOptions, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkOpen, bulkText, bulkRole, bulkResult, deviceSetupOpen, enrollments, enrollmentName, newDeviceToken, automationMode, newBlockType, blocks, blockCatalog, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, gestureDown, gestureUp, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript, loadEnrollments, createEnrollment, removeEnrollment, copyDeviceToken };
+  return { devices, groups, filteredDevices, onlineDevices, appOptions, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkOpen, bulkText, bulkRole, bulkResult, deviceSetupOpen, enrollments, enrollmentName, newDeviceToken, automationMode, newBlockType, blocks, blockCatalog, theme, toggleTheme, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, gestureDown, gestureUp, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript, loadEnrollments, createEnrollment, removeEnrollment, copyDeviceToken };
 }}).mount("#app");

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { validCommand } from "../src/protocol.js";
 import { parseAutomation } from "../src/automation.js";
+import { friendlyDeviceToken } from "../src/auth.js";
 
 test("only accepts supported, bounded commands", () => {
   assert.equal(validCommand({ type: "tap", x: 1, y: 2 }), true);
@@ -23,4 +24,10 @@ test("parses the bounded automation DSL", () => {
   assert.throws(() => parseAutomation("WAIT 999999"), /等待时间/);
   assert.throws(() => parseAutomation("SHELL rm"), /指令无效/);
   assert.deepEqual(parseAutomation("SWIPE 10 20 30 40 500"), [{ command: { type: "swipe", x1: 10, y1: 20, x2: 30, y2: 40, duration: 500 } }]);
+});
+
+test("generates readable, strong device tokens", () => {
+  const tokens = new Set(Array.from({ length: 100 }, friendlyDeviceToken));
+  assert.equal(tokens.size, 100);
+  for (const token of tokens) assert.match(token, /^[a-z]{7}-[a-z]{7}-[a-z]{7}$/);
 });

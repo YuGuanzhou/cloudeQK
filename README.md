@@ -36,7 +36,7 @@
 
 ## Socket.io 协议
 
-所有消息均为 JSON。设备连接使用 `auth: { role: "device", token, deviceId }`；网页使用登录后签发的 HttpOnly 会话 Cookie。服务端环境变量 `DEVICE_TOKEN` 必须与设备客户端一致。
+所有消息均为 JSON。设备连接使用 `auth: { role: "device", token, deviceId }`；网页使用登录后签发的 HttpOnly 会话 Cookie。设备 Token 必须先在网页“绑定设备”中创建，每个 Token 只绑定一台安卓设备，服务端仅保存 Token 哈希。
 
 | 方向 | 事件 | 载荷 | 作用 |
 |---|---|---|---|
@@ -73,13 +73,12 @@
 ```powershell
 cd server
 npm install
-$env:DEVICE_TOKEN='change-device-token'
 $env:DB_PASSWORD='Yu789321'
 $env:ADMIN_PASSWORD='请设置一个强密码'
 npm start
 ```
 
-打开 `http://localhost:3000/`，使用管理员账号登录。默认账号为 `admin`、默认密码为 `Admin123456`；首次登录后应立即在后台管理中修改。数据库默认连接本机 `127.0.0.1:3306` 的 `root` 用户，并自动创建 `cloudeqk` 数据库。Android Studio 打开 `android/` 并安装到真机或模拟器；在 App 首页填写服务器地址和与 `DEVICE_TOKEN` 一致的设备 Token，保存后会立即重连。真机使用电脑局域网 IP，模拟器可使用默认的 `10.0.2.2`，连接后依次开启无障碍服务和录屏。
+打开 `http://localhost:3000/`，使用管理员账号登录。默认账号为 `admin`、默认密码为 `Admin123456`；首次登录后应立即在后台管理中修改。数据库默认连接本机 `127.0.0.1:3306` 的 `root` 用户，并自动创建 `cloudeqk` 数据库。在网页点击“绑定设备”创建设备并复制专属 Token。Android Studio 打开 `android/` 并安装到真机或模拟器；在 App 首页填写服务器地址和刚生成的设备 Token，保存后会立即绑定。真机使用电脑局域网 IP，模拟器可使用默认的 `10.0.2.2`，连接后依次开启无障碍服务和录屏。
 
 控制台支持设备搜索、多选批量下发；未选择设备时默认发给全部在线设备。点击设备名称进入投屏，勾选框只控制指令接收范围。没有网页订阅时 Android 会保持系统录屏授权，但暂停 JPEG 编码和网络发送。
 

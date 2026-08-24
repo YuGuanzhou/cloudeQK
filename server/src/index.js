@@ -8,10 +8,9 @@ import { Server } from "socket.io";
 import { publicDevice, validCommand } from "./protocol.js";
 import { parseAutomation, runAutomation } from "./automation.js";
 import { initDb, pool, hashPassword, verifyPassword, publicUser } from "./db.js";
-import { createSession, currentUser, destroySession, me, requireAdmin, requireUser } from "./auth.js";
+import { createSession, currentUser, destroySession, friendlyDeviceToken, me, requireAdmin, requireUser } from "./auth.js";
 
 const PORT = Number(process.env.PORT || 3000);
-const DEVICE_TOKEN = process.env.DEVICE_TOKEN || "change-device-token";
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web");
 const dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
 const groupsFile = path.join(dataDir, "groups.json");
@@ -29,6 +28,26 @@ app.post("/api/login", async (req, res) => {
 });
 app.post("/api/logout", async (req, res) => { await destroySession(req, res); res.json({ ok: true }); });
 app.get("/api/me", requireUser, (req, res) => res.json({ user: me(req.user) }));
+app.get("/api/device-enrollments", requireUser, async (req, res) => {
+  const [rows] = await pool.query("SELECT id,name,bound_device_id,created_at,last_connected_at FROM device_enrollments WHERE user_id=? ORDER BY created_at DESC", [req.user.id]);
+  res.json({ enrollments: rows.map(row => ({ id: row.id, name: row.name, deviceId: row.bound_device_id, createdAt: row.created_at, lastConnectedAt: row.last_connected_at })) });
+});
+app.post("/api/device-enrollments", requireUser, async (req, res) => {
+  const name = String(req.body?.name || "").trim().slice(0, 80);
+  if (!name) return res.status(400).json({ error: "设备名称不能为空" });
+  const [[usage]] = await pool.query("SELECT u.max_devices,COUNT(e.id) used FROM users u LEFT JOIN device_enrollments e ON e.user_id=u.id WHERE u.id=? GROUP BY u.id", [req.user.id]);
+  if (Number(usage.used) >= Number(usage.max_devices)) return res.status(400).json({ error: "已达到最大设备数" });
+  const id = crypto.randomUUID(), token = friendlyDeviceToken(), tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  await pool.query("INSERT INTO device_enrollments (id,user_id,name,token_hash) VALUES (?,?,?,?)", [id, req.user.id, name, tokenHash]);
+  res.status(201).json({ enrollment: { id, name, token } });
+});
+app.delete("/api/device-enrollments/:id", requireUser, async (req, res) => {
+  const [[row]] = await pool.query("SELECT bound_device_id FROM device_enrollments WHERE id=? AND user_id=?", [req.params.id, req.user.id]);
+  if (!row) return res.status(404).json({ error: "设备不存在" });
+  if (row.bound_device_id) { const device = devices.get(row.bound_device_id); if (device?.socketId) io.sockets.sockets.get(device.socketId)?.disconnect(true); await pool.query("UPDATE devices SET user_id=NULL WHERE device_id=?", [row.bound_device_id]); devices.delete(row.bound_device_id); }
+  await pool.query("DELETE FROM device_enrollments WHERE id=?", [req.params.id]);
+  res.json({ ok: true });
+});
 app.get("/api/admin/users", requireUser, requireAdmin, async (_req, res) => {
   const [rows] = await pool.query("SELECT u.*,COUNT(d.device_id) device_count FROM users u LEFT JOIN devices d ON d.user_id=u.id GROUP BY u.id ORDER BY u.created_at DESC");
   res.json({ users: rows.map(publicUser) });
@@ -123,7 +142,11 @@ async function refreshStreaming(deviceId) {
 
 io.use(async (socket, next) => {
   const { role, token, deviceId } = socket.handshake.auth || {};
-  if (role === "device" && token === DEVICE_TOKEN && typeof deviceId === "string" && deviceId.length <= 128) return next();
+  if (role === "device" && typeof token === "string" && typeof deviceId === "string" && deviceId.length <= 128) {
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const [[enrollment]] = await pool.query("SELECT e.*,u.banned FROM device_enrollments e JOIN users u ON u.id=e.user_id WHERE e.token_hash=?", [tokenHash]);
+    if (enrollment && !enrollment.banned && (!enrollment.bound_device_id || enrollment.bound_device_id === deviceId)) { socket.data.enrollment = enrollment; return next(); }
+  }
   if (role === "dashboard") { const user = await currentUser(socket.request); if (user) { socket.data.user = user; return next(); } }
   next(new Error("unauthorized"));
 });
@@ -206,10 +229,12 @@ io.on("connection", (socket) => {
 
   socket.on("device:register", async (info = {}) => {
     if (info.deviceId !== deviceId) return;
+    const enrollment = socket.data.enrollment;
+    const [binding] = await pool.query("UPDATE device_enrollments SET bound_device_id=?,last_connected_at=NOW() WHERE id=? AND (bound_device_id IS NULL OR bound_device_id=?)", [deviceId, enrollment.id, deviceId]);
+    if (!binding.affectedRows) return socket.disconnect(true);
     const model = String(info.model || "Unknown").slice(0, 100), androidVersion = String(info.androidVersion || "?").slice(0, 30);
-    await pool.query("INSERT INTO devices (device_id,model,android_version) VALUES (?,?,?) ON DUPLICATE KEY UPDATE model=VALUES(model),android_version=VALUES(android_version),last_seen_at=NOW()", [deviceId, model, androidVersion]);
-    const [[stored]] = await pool.query("SELECT user_id FROM devices WHERE device_id=?", [deviceId]);
-    const device = { deviceId, userId: stored?.user_id || null, model, androidVersion, online: true, lastSeen: Date.now(), socketId: socket.id };
+    await pool.query("INSERT INTO devices (device_id,user_id,model,android_version) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id),model=VALUES(model),android_version=VALUES(android_version),last_seen_at=NOW()", [deviceId, enrollment.user_id, model, androidVersion]);
+    const device = { deviceId, userId: enrollment.user_id, model, androidVersion, online: true, lastSeen: Date.now(), socketId: socket.id };
     devices.set(deviceId, device);
     io.to("dashboard:admin").to(device.userId ? `dashboard:${device.userId}` : "__none__").emit("device:status", publicDevice(device));
     refreshStreaming(deviceId);

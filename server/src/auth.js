@@ -35,3 +35,9 @@ export async function requireUser(req, res, next) {
 
 export function requireAdmin(req, res, next) { return req.user?.role === "admin" ? next() : res.status(403).json({ error: "需要管理员权限" }); }
 export const me = user => publicUser(user);
+
+export function friendlyDeviceToken() {
+  const consonants = "bcdfghjkmnprstvwxyz", vowels = "aeiou";
+  const word = () => [consonants, vowels, consonants, vowels, consonants, vowels, consonants].map(chars => chars[crypto.randomInt(chars.length)]).join("");
+  return `${word()}-${word()}-${word()}`;
+}

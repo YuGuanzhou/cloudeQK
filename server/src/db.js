@@ -44,6 +44,12 @@ export async function initDb() {
     first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL, INDEX (user_id)
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS device_enrollments (
+    id CHAR(36) PRIMARY KEY, user_id CHAR(36) NOT NULL, name VARCHAR(80) NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE, bound_device_id VARCHAR(128) NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, last_connected_at TIMESTAMP NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, INDEX (user_id)
+  )`);
   const username = process.env.ADMIN_USERNAME || "admin";
   const [rows] = await pool.query("SELECT id FROM users WHERE username=?", [username]);
   if (!rows.length) await pool.query("INSERT INTO users (id,username,password_hash,role,max_devices) VALUES (?,?,?,?,?)", [crypto.randomUUID(), username, hashPassword(process.env.ADMIN_PASSWORD || "Admin123456"), "admin", 100]);

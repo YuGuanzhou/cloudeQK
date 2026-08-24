@@ -4,6 +4,7 @@ createApp({ setup() {
   const currentUser = ref({}), adminUsers = ref([]), adminDevices = ref([]), newUser = ref({ username: "", password: "", role: "user", maxDevices: 5 });
   const modal = ref({ open: false, title: "", message: "", input: false, value: "", danger: false, error: "" });
   const bulkOpen = ref(false), bulkText = ref("user001,Password123,5\nuser002,Password123,5"), bulkRole = ref("user"), bulkResult = ref(null);
+  const deviceSetupOpen = ref(false), enrollments = ref([]), enrollmentName = ref(""), newDeviceToken = ref("");
   let resolveModal;
   window.addEventListener("keydown", event => { if (event.key === "Escape" && modal.value.open) closeModal(); });
   const bindPackageInputs = () => {
@@ -49,7 +50,11 @@ createApp({ setup() {
   socket.on("automation:progress", r => { if (r.runId === activeRun.value) log(`自动化进度 ${r.step}/${r.total}`); });
   socket.on("automation:done", r => { if (r.runId === activeRun.value) { log(r.ok ? "自动化执行完成" : r.error); activeRun.value = ""; } });
   async function api(url, options) { const response = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "请求失败"); return body; }
-  api("/api/me").then(body => currentUser.value = body.user).catch(() => location.href = "/login.html");
+  api("/api/me").then(body => { currentUser.value = body.user; loadEnrollments(); }).catch(() => location.href = "/login.html");
+  async function loadEnrollments() { try { enrollments.value = (await api("/api/device-enrollments")).enrollments; } catch (error) { log(error.message); } }
+  async function createEnrollment() { try { const body = await api("/api/device-enrollments", { method: "POST", body: JSON.stringify({ name: enrollmentName.value }) }); newDeviceToken.value = body.enrollment.token; enrollmentName.value = ""; await loadEnrollments(); } catch (error) { log(error.message); } }
+  async function removeEnrollment(item) { if (!await showModal({ title: "删除设备绑定", message: `确定删除 ${item.name}？该设备将立即断开并从用户设备列表移除。`, danger: true })) return; try { await api(`/api/device-enrollments/${item.id}`, { method: "DELETE" }); await loadEnrollments(); log("设备绑定已删除"); } catch (error) { log(error.message); } }
+  async function copyDeviceToken() { await navigator.clipboard.writeText(newDeviceToken.value); log("设备 Token 已复制"); }
   async function loadAdmin() { try { const [users, deviceList] = await Promise.all([api("/api/admin/users"), api("/api/admin/devices")]); adminUsers.value = users.users; adminDevices.value = deviceList.devices; } catch (error) { log(error.message); } }
   function openAdmin() { view.value = "admin"; loadAdmin(); }
   async function createUser() { try { await api("/api/admin/users", { method: "POST", body: JSON.stringify(newUser.value) }); newUser.value = { username: "", password: "", role: "user", maxDevices: 5 }; await loadAdmin(); log("用户已创建"); } catch (error) { log(error.message); } }
@@ -156,5 +161,5 @@ createApp({ setup() {
   }
   function removePreset(name) { presets.value = presets.value.filter(p => p.name !== name); localStorage.setItem("automation-presets", JSON.stringify(presets.value)); }
   function loadPreset(preset) { script.value = preset.source; importScript(); }
-  return { devices, groups, filteredDevices, onlineDevices, appOptions, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkOpen, bulkText, bulkRole, bulkResult, automationMode, newBlockType, blocks, blockCatalog, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, gestureDown, gestureUp, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript };
+  return { devices, groups, filteredDevices, onlineDevices, appOptions, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkOpen, bulkText, bulkRole, bulkResult, deviceSetupOpen, enrollments, enrollmentName, newDeviceToken, automationMode, newBlockType, blocks, blockCatalog, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, gestureDown, gestureUp, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript, loadEnrollments, createEnrollment, removeEnrollment, copyDeviceToken };
 }}).mount("#app");

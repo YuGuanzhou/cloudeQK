@@ -10,14 +10,8 @@ createApp({ setup() {
   const enrollments = ref([]), enrollmentName = ref(""), newDeviceToken = ref("");
   let resolveModal;
   window.addEventListener("keydown", event => { if (event.key === "Escape" && modal.value.open) closeModal(); });
-  const bindPackageInputs = () => {
-    document.querySelectorAll('input[placeholder="com.example.app"]').forEach(input => input.setAttribute("list", "installed-apps"));
-    document.querySelectorAll(".control form label").forEach(label => { if (label.textContent.trim().startsWith("包名")) label.querySelector("input")?.setAttribute("list", "installed-apps"); });
-  };
-  new MutationObserver(bindPackageInputs).observe(document.getElementById("app"), { childList: true, subtree: true });
-  queueMicrotask(bindPackageInputs);
   const devices = ref([]), groups = ref([]), connected = ref(false), connectionError = ref(""), view = ref("wall"), target = ref(""), scope = ref("all"), selectedGroupId = ref(""), selectedIds = ref([]), newGroupName = ref(""), query = ref(""), frames = ref({}), logs = ref([]);
-  const form = ref({ type: "openApp", packageName: "com.android.settings", x: 100, y: 100, text: "Hello", action: "BACK" });
+  const form = ref({ type: "openApp", packageName: "", x: 100, y: 100, text: "Hello", action: "BACK" }), appQuery = ref(""), appPickerOpen = ref(false);
   const script = ref("# 每行一条指令\nOPEN com.android.settings\nWAIT 1000\nTAP 100 200\nBACK"), presetName = ref(""), presets = ref(JSON.parse(localStorage.getItem("automation-presets") || "[]")), activeRun = ref("");
   const automationMode = ref("visual"), newBlockType = ref("openApp"), blocks = ref([
     { id: crypto.randomUUID(), type: "openApp", packageName: "com.android.settings" },
@@ -28,17 +22,13 @@ createApp({ setup() {
   const blockCatalog = [
     ["openApp", "打开应用"], ["wait", "等待"], ["tap", "点击坐标"], ["swipe", "滑动"], ["text", "输入文本"], ["action", "系统动作"]
   ];
-  let gestureStart = null;
   const filteredDevices = computed(() => { const q = query.value.toLowerCase(); return devices.value.filter(d => `${d.model} ${d.deviceId} ${d.androidVersion}`.toLowerCase().includes(q)); });
   const onlineDevices = computed(() => filteredDevices.value.filter(d => d.online));
-  const appOptions = computed(() => {
-    const found = new Map();
-    for (const device of devices.value) for (const app of device.apps || []) { const old = found.get(app.packageName); found.set(app.packageName, { ...app, count: (old?.count || 0) + 1 }); }
-    return [...found.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
-  });
+  const targetApps = computed(() => devices.value.find(device => device.deviceId === target.value)?.apps || []);
+  const matchingApps = computed(() => { const q = appQuery.value.trim().toLowerCase(); return targetApps.value.filter(app => !q || `${app.name} ${app.packageName}`.toLowerCase().includes(q)); });
   const selectedGroup = computed(() => groups.value.find(group => group.id === selectedGroupId.value));
   const recipientLabel = computed(() => scope.value === "single" ? `单台：${devices.value.find(device => device.deviceId === target.value)?.model || "未选择"}` : scope.value === "selected" ? `${selectedIds.value.length} 台已选设备` : scope.value === "group" ? `分组：${selectedGroup.value?.name || "未选择"}` : "全部在线设备");
-  const upsert = d => { const i = devices.value.findIndex(x => x.deviceId === d.deviceId); i < 0 ? devices.value.push(d) : devices.value.splice(i, 1, d); if (d.online) socket.emit("screen:subscribe", { deviceId: d.deviceId }); };
+  const upsert = d => { const i = devices.value.findIndex(x => x.deviceId === d.deviceId); i < 0 ? devices.value.push(d) : devices.value.splice(i, 1, { ...devices.value[i], ...d }); if (d.online) socket.emit("screen:subscribe", { deviceId: d.deviceId }); };
   const log = text => { logs.value.unshift({ id: crypto.randomUUID(), text, time: Date.now() }); logs.value = logs.value.slice(0, 100); };
   const clearLogs = () => { logs.value = []; };
   const recipients = () => scope.value === "single" ? (target.value ? [target.value] : []) : scope.value === "selected" ? selectedIds.value : scope.value === "group" ? (selectedGroup.value?.deviceIds || []) : ["*"];
@@ -88,9 +78,9 @@ createApp({ setup() {
     if (command.type === "openApp") command.packageName = form.value.packageName;
     if (command.type === "tap") { command.x = form.value.x; command.y = form.value.y; }
     if (command.type === "inputText") command.text = form.value.text;
-    if (command.type === "globalAction") command.action = form.value.action;
     return command;
   }
+  function chooseApp(app) { form.value.packageName = app.packageName; appQuery.value = app.name; appPickerOpen.value = false; emitCommand({ type: "openApp", packageName: app.packageName }); }
   function newBlock(type) {
     const defaults = { openApp: { packageName: "com.android.settings" }, wait: { duration: 1000 }, tap: { x: 100, y: 100 }, swipe: { x1: 100, y1: 600, x2: 100, y2: 200, duration: 300 }, text: { text: "" }, action: { action: "BACK" } };
     return { id: crypto.randomUUID(), type, ...defaults[type] };
@@ -138,15 +128,7 @@ createApp({ setup() {
     const x = event.clientX - left, y = event.clientY - top;
     return x < 0 || y < 0 || x > width || y > height ? null : { x: x / width, y: y / height };
   }
-  function gestureDown(event, device) { gestureStart = { point: relativePoint(event, device), time: Date.now(), pointerId: event.pointerId }; event.currentTarget.setPointerCapture(event.pointerId); }
-  function gestureUp(event, device) {
-    if (!gestureStart || gestureStart.pointerId !== event.pointerId) return;
-    const start = gestureStart, end = relativePoint(event, device); gestureStart = null;
-    if (!start.point || !end) return;
-    const distance = Math.hypot(end.x - start.point.x, end.y - start.point.y);
-    if (distance < 0.015) emitCommand({ type: "tapRelative", ...end });
-    else emitCommand({ type: "swipeRelative", x1: start.point.x, y1: start.point.y, x2: end.x, y2: end.y, duration: Math.max(100, Math.min(1500, Date.now() - start.time)) });
-  }
+  function screenTap(event, device) { const point = relativePoint(event, device); if (point) emitCommand({ type: "tapRelative", ...point }); }
   function runScript() {
     if (!recipients().length) return log("当前操作范围没有设备");
     if (automationMode.value === "visual") syncScript();
@@ -165,5 +147,5 @@ createApp({ setup() {
   }
   function removePreset(name) { presets.value = presets.value.filter(p => p.name !== name); localStorage.setItem("automation-presets", JSON.stringify(presets.value)); }
   function loadPreset(preset) { script.value = preset.source; importScript(); }
-  return { devices, groups, filteredDevices, onlineDevices, appOptions, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkText, bulkRole, bulkResult, enrollments, enrollmentName, newDeviceToken, automationMode, newBlockType, blocks, blockCatalog, theme, toggleTheme, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, gestureDown, gestureUp, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, clearLogs, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript, loadEnrollments, createEnrollment, removeEnrollment, copyDeviceToken };
+  return { devices, groups, filteredDevices, onlineDevices, targetApps, matchingApps, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, appQuery, appPickerOpen, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkText, bulkRole, bulkResult, enrollments, enrollmentName, newDeviceToken, automationMode, newBlockType, blocks, blockCatalog, theme, toggleTheme, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, chooseApp, screenTap, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, clearLogs, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript, loadEnrollments, createEnrollment, removeEnrollment, copyDeviceToken };
 }}).mount("#app");

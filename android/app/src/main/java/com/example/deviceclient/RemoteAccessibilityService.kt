@@ -46,8 +46,9 @@ class RemoteAccessibilityService : AccessibilityService() {
             when (command?.optString("type")) {
                 "openApp" -> {
                     val packageName = command.optString("packageName")
-                    val launch = context.packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    if (launch == null) false to "App 未安装或不可启动" else { context.startActivity(launch); true to "已打开 $packageName" }
+                    val launcherContext = instance ?: context
+                    val launch = launcherContext.packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    if (launch == null) false to "App 未安装或不可启动" else { launcherContext.startActivity(launch); true to "已打开 $packageName" }
                 }
                 "tap" -> instance?.tap(command.optDouble("x").toFloat(), command.optDouble("y").toFloat())?.let { it to if (it) "点击已提交" else "点击提交失败" } ?: (false to "无障碍服务未开启")
                 "tapRelative" -> instance?.let { service ->

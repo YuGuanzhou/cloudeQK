@@ -1,6 +1,8 @@
 package com.example.deviceclient
 
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.provider.Settings
 import io.socket.client.IO
@@ -63,8 +65,11 @@ object SocketManager {
     @Suppress("DEPRECATION")
     private fun installedApps(context: Context): JSONArray {
         val manager = context.packageManager
-        val packages = if (Build.VERSION.SDK_INT >= 33) manager.getInstalledApplications(android.content.pm.PackageManager.ApplicationInfoFlags.of(0)) else manager.getInstalledApplications(0)
-        return JSONArray(packages.asSequence().filter { it.enabled }.map {
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val activities = if (Build.VERSION.SDK_INT >= 33) manager.queryIntentActivities(launcher, android.content.pm.PackageManager.ResolveInfoFlags.of(0)) else manager.queryIntentActivities(launcher, 0)
+        return JSONArray(activities.asSequence().map { it.activityInfo.applicationInfo }.filter {
+            it.enabled && it.flags and ApplicationInfo.FLAG_SYSTEM == 0
+        }.distinctBy { it.packageName }.map {
             JSONObject().put("packageName", it.packageName).put("name", manager.getApplicationLabel(it).toString())
         }.sortedBy { it.optString("name").lowercase() }.take(1000).toList())
     }

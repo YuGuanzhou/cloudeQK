@@ -1,0 +1,15 @@
+.git
+.gitignore
+.codex-zh-compat
+.tools
+.idea
+.vscode
+android
+release
+server/node_modules
+server/data
+server/*.log
+*.md
+*.apk
+*.aab
+npm-debug.log*

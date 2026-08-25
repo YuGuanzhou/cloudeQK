@@ -6,8 +6,8 @@ createApp({ setup() {
   const socket = io({ auth: { role: "dashboard" } });
   const currentUser = ref({}), adminUsers = ref([]), adminDevices = ref([]), newUser = ref({ username: "", password: "", role: "user", maxDevices: 5 });
   const modal = ref({ open: false, title: "", message: "", input: false, value: "", danger: false, error: "" });
-  const bulkOpen = ref(false), bulkText = ref("user001,Password123,5\nuser002,Password123,5"), bulkRole = ref("user"), bulkResult = ref(null);
-  const deviceSetupOpen = ref(false), enrollments = ref([]), enrollmentName = ref(""), newDeviceToken = ref("");
+  const bulkText = ref("user001,Password123,5\nuser002,Password123,5"), bulkRole = ref("user"), bulkResult = ref(null);
+  const enrollments = ref([]), enrollmentName = ref(""), newDeviceToken = ref("");
   let resolveModal;
   window.addEventListener("keydown", event => { if (event.key === "Escape" && modal.value.open) closeModal(); });
   const bindPackageInputs = () => {
@@ -39,7 +39,8 @@ createApp({ setup() {
   const selectedGroup = computed(() => groups.value.find(group => group.id === selectedGroupId.value));
   const recipientLabel = computed(() => scope.value === "single" ? `单台：${devices.value.find(device => device.deviceId === target.value)?.model || "未选择"}` : scope.value === "selected" ? `${selectedIds.value.length} 台已选设备` : scope.value === "group" ? `分组：${selectedGroup.value?.name || "未选择"}` : "全部在线设备");
   const upsert = d => { const i = devices.value.findIndex(x => x.deviceId === d.deviceId); i < 0 ? devices.value.push(d) : devices.value.splice(i, 1, d); if (d.online) socket.emit("screen:subscribe", { deviceId: d.deviceId }); };
-  const log = text => { logs.value.unshift({ id: crypto.randomUUID(), text }); logs.value = logs.value.slice(0, 100); };
+  const log = text => { logs.value.unshift({ id: crypto.randomUUID(), text, time: Date.now() }); logs.value = logs.value.slice(0, 100); };
+  const clearLogs = () => { logs.value = []; };
   const recipients = () => scope.value === "single" ? (target.value ? [target.value] : []) : scope.value === "selected" ? selectedIds.value : scope.value === "group" ? (selectedGroup.value?.deviceIds || []) : ["*"];
   socket.on("connect", () => { connected.value = true; connectionError.value = ""; });
   socket.on("disconnect", () => connected.value = false);
@@ -164,5 +165,5 @@ createApp({ setup() {
   }
   function removePreset(name) { presets.value = presets.value.filter(p => p.name !== name); localStorage.setItem("automation-presets", JSON.stringify(presets.value)); }
   function loadPreset(preset) { script.value = preset.source; importScript(); }
-  return { devices, groups, filteredDevices, onlineDevices, appOptions, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkOpen, bulkText, bulkRole, bulkResult, deviceSetupOpen, enrollments, enrollmentName, newDeviceToken, automationMode, newBlockType, blocks, blockCatalog, theme, toggleTheme, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, gestureDown, gestureUp, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript, loadEnrollments, createEnrollment, removeEnrollment, copyDeviceToken };
+  return { devices, groups, filteredDevices, onlineDevices, appOptions, connected, connectionError, view, target, scope, selectedGroupId, selectedIds, newGroupName, recipientLabel, query, frames, logs, form, script, presetName, presets, activeRun, currentUser, adminUsers, adminDevices, newUser, modal, bulkText, bulkRole, bulkResult, enrollments, enrollmentName, newDeviceToken, automationMode, newBlockType, blocks, blockCatalog, theme, toggleTheme, select, toggle, selectOnline, createGroup, assignGroup, deleteGroup, emitCommand, commandFromForm, gestureDown, gestureUp, runScript, cancelScript, savePreset, removePreset, loadPreset, openAdmin, createUser, createBulkUsers, updateUser, changePassword, deleteUser, assignDevice, logout, formatTime, clearLogs, closeModal, submitModal, addBlock, removeBlock, moveBlock, syncScript, importScript, loadEnrollments, createEnrollment, removeEnrollment, copyDeviceToken };
 }}).mount("#app");

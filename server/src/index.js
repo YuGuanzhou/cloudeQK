@@ -10,7 +10,7 @@ import { parseAutomation, runAutomation } from "./automation.js";
 import { initDb, pool, hashPassword, verifyPassword, publicUser } from "./db.js";
 import { createSession, currentUser, destroySession, friendlyDeviceToken, me, requireAdmin, requireUser } from "./auth.js";
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 6001);
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web");
 const dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
 const groupsFile = path.join(dataDir, "groups.json");

@@ -1,0 +1,157 @@
+.scope-divider {
+  align-self: stretch;
+  width: 1px;
+  flex: 0 0 1px;
+  margin: 0 3px;
+  background: var(--line);
+}
+
+.new-group-input {
+  width: 125px;
+  padding: 7px 9px;
+}
+
+.header-danger {
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+.header-danger:hover {
+  color: #fff;
+  background: var(--danger);
+}
+
+.side-nav {
+  margin-bottom: 22px;
+}
+
+@media (max-width: 1300px) {
+  .header-scope {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}
+
+.log {
+  padding: 0;
+  overflow: hidden;
+  max-height: none;
+}
+
+.log-head,
+.log-head > div {
+  display: flex;
+  align-items: center;
+}
+
+.log-head {
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-head > div {
+  gap: 10px;
+}
+
+.log-head h2 {
+  margin: 0;
+}
+
+.log-head span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.log-head button {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.log-list {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.log-list article {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-list article:last-child {
+  border-bottom: 0;
+}
+
+.log-list article:hover {
+  background: var(--primary-soft);
+}
+
+.log-list i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 50%;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.log-list .success i {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.log-list .failed i {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.log-list p {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  border: 0;
+  font: inherit;
+}
+
+.log-list time {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.log-empty {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 32px 18px;
+  color: var(--muted);
+}
+
+.log-empty span {
+  font-size: 24px;
+}
+
+.log-empty small {
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .log-list article {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .log-list time {
+    grid-column: 2;
+  }
+}

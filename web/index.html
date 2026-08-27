@@ -1,25 +1,840 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>小鱼 云群控</title><link rel="icon" href="/brand-icon.png"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/gesture.css"><link rel="stylesheet" href="/brand.css"><link rel="stylesheet" href="/admin.css"><link rel="stylesheet" href="/modal.css"><link rel="stylesheet" href="/workflow.css"><link rel="stylesheet" href="/bulk.css"><link rel="stylesheet" href="/device-setup.css"><link rel="stylesheet" href="/redesign.css"><link rel="stylesheet" href="/topbar.css"></head>
-<body><main id="app">
-  <header><div class="brand"><img src="/brand-icon.png" alt=""><div><h1>小鱼 云群控</h1><small :class="connected?'ok':'bad'">{{connected?'服务器已连接':(connectionError||'连接断开')}}</small></div></div><section class="header-scope"><span class="header-scope-title">操作范围</span><label><input type="radio" v-model="scope" value="all"> 全部在线</label><label><input type="radio" v-model="scope" value="selected"> 已选 {{selectedIds.length}} 台</label><label><input type="radio" v-model="scope" value="group"> 设备分组</label><select v-model="selectedGroupId" @change="scope='group'"><option value="">选择分组</option><option v-for="g in groups" :key="g.id" :value="g.id">{{g.name}}（{{g.deviceIds.length}}）</option></select><button class="secondary" @click="selectOnline">全选在线</button><span class="scope-divider"></span><span class="header-scope-title">分组管理</span><input class="new-group-input" v-model="newGroupName" placeholder="新分组名称"><button @click="createGroup">创建</button><button class="secondary" @click="assignGroup">保存设备</button><button class="header-danger" @click="deleteGroup">删除分组</button></section><nav class="header-account"><button class="theme-toggle" @click="toggleTheme" :title="theme==='dark'?'切换到白天模式':'切换到黑夜模式'">{{theme==='dark'?'☀':'☾'}}</button><span class="user-chip"><i>{{currentUser.username?.slice(0,1).toUpperCase()}}</i>{{currentUser.username}}</span><button class="secondary logout" @click="logout">退出</button></nav></header>
-  <section class="layout">
-    <aside><nav class="side-nav"><span class="side-nav-title">功能菜单</span><button :class="{active:view==='wall'}" @click="view='wall'"><span>◫</span><b>屏幕墙</b><small>设备实时画面</small></button><button :class="{active:view==='automation'}" @click="view='automation'"><span>◇</span><b>自动化</b><small>编排执行流程</small></button><button :class="{active:view==='devices'}" @click="view='devices';newDeviceToken='';loadEnrollments()"><span>＋</span><b>绑定设备</b><small>添加移动终端</small></button><button v-if="currentUser.role==='admin'" :class="{active:view==='admin'}" @click="openAdmin"><span>⚙</span><b>后台管理</b><small>用户与设备归属</small></button><button v-if="currentUser.role==='admin'" :class="{active:view==='bulk'}" @click="view='bulk';bulkResult=null"><span>♙</span><b>批量用户</b><small>快速创建账号</small></button></nav><div class="device-list-head"><h2 class="device-heading">设备</h2><span>{{devices.length}}</span></div><input v-model="query" placeholder="搜索设备"><div v-for="d in filteredDevices" :key="d.deviceId" class="device" :class="{focused:target===d.deviceId}"><input type="checkbox" :checked="selectedIds.includes(d.deviceId)" @change="toggle(d.deviceId)"><button class="device-name" @click="select(d.deviceId)"><span :class="d.online?'dot on':'dot'"></span><b>{{d.model}}</b><small>{{d.deviceId}} · Android {{d.androidVersion}}</small></button></div><p v-if="!filteredDevices.length" class="muted">暂无匹配设备</p></aside>
-    <section class="content">
-      <section v-if="view==='wall'" class="wall"><article v-for="d in onlineDevices" :key="d.deviceId" class="tile"><div class="tile-title"><b>{{d.model}}</b><button @click="select(d.deviceId)">控制</button></div><img v-if="frames[d.deviceId]" :src="frames[d.deviceId].url" :alt="d.model+' 实时画面'"><div v-else class="waiting">等待画面…</div></article><p v-if="!onlineDevices.length" class="muted">暂无在线设备</p></section>
-      <section v-else-if="view==='control'" class="control"><div class="phone-shell"><div class="phone"><img v-if="frames[target]" :src="frames[target].url" draggable="false" @pointerup="screenTap($event, devices.find(d=>d.deviceId===target))" alt="点击画面即可远程操作"><p v-else>等待设备画面…</p></div><nav class="virtual-keys" aria-label="安卓虚拟导航键"><button title="返回" @click="emitCommand({type:'globalAction',action:'BACK'})">‹<small>返回</small></button><button title="主页" @click="emitCommand({type:'globalAction',action:'HOME'})">○<small>主页</small></button><button title="最近任务" @click="emitCommand({type:'globalAction',action:'RECENTS'})">▢<small>任务</small></button></nav></div><form @submit.prevent="emitCommand(commandFromForm())"><h2>手动控制 → {{recipientLabel}}</h2><p class="muted">点击设备画面操作；返回、主页和最近任务请使用画面下方虚拟键。</p><label>指令<select v-model="form.type"><option value="openApp">打开 App</option><option value="tap">点击坐标</option><option value="inputText">输入文本</option></select></label><div v-if="form.type==='openApp'" class="app-picker"><label>安装的软件<input v-model="appQuery" @focus="appPickerOpen=true" @keydown.esc="appPickerOpen=false" placeholder="搜索应用名称或包名" autocomplete="off" required></label><div v-if="appPickerOpen" class="app-options"><button v-for="app in matchingApps" :key="app.packageName" type="button" @pointerdown.prevent="chooseApp(app)"><b>{{app.name}}</b><small>{{app.packageName}}</small></button><p v-if="!matchingApps.length">没有找到可启动的用户应用</p></div><small v-if="form.packageName" class="selected-app">已选择：{{form.packageName}}</small></div><template v-if="form.type==='tap'"><label>X<input v-model.number="form.x" type="number" min="0"></label><label>Y<input v-model.number="form.y" type="number" min="0"></label></template><label v-if="form.type==='inputText'">文本<input v-model="form.text" maxlength="2000"></label><button :disabled="!connected||form.type==='openApp'&&!form.packageName">发送</button></form></section>
-      <section v-else-if="view==='automation'" class="workflow"><div class="workflow-main"><div class="workflow-head"><div><h2>自动化流程 → {{recipientLabel}}</h2><p class="muted">按顺序执行，每个模块都是一个安全动作</p></div><div class="mode-tabs"><button :class="{active:automationMode==='visual'}" @click="automationMode='visual'">可视化流程</button><button :class="{active:automationMode==='code'}" @click="syncScript();automationMode='code'">代码语言</button></div></div><div v-if="automationMode==='visual'" class="flow-builder"><div class="add-block"><select v-model="newBlockType"><option v-for="item in blockCatalog" :value="item[0]">{{item[1]}}</option></select><button @click="addBlock">＋ 添加流程模块</button></div><div v-if="!blocks.length" class="empty-flow">还没有流程模块，请从上方添加</div><article v-for="(b,index) in blocks" :key="b.id" class="flow-block"><div class="flow-order">{{index+1}}</div><div class="flow-fields"><b>{{({openApp:'打开应用',wait:'等待',tap:'点击坐标',swipe:'滑动',text:'输入文本',action:'系统动作'})[b.type]}}</b><label v-if="b.type==='openApp'">应用包名<input v-model.trim="b.packageName" @input="syncScript" placeholder="com.example.app"></label><label v-if="b.type==='wait'">等待毫秒<input v-model.number="b.duration" @input="syncScript" type="number" min="0" max="60000"></label><template v-if="b.type==='tap'"><label>X 坐标<input v-model.number="b.x" @input="syncScript" type="number" min="0"></label><label>Y 坐标<input v-model.number="b.y" @input="syncScript" type="number" min="0"></label></template><template v-if="b.type==='swipe'"><label>起点 X<input v-model.number="b.x1" @input="syncScript" type="number" min="0"></label><label>起点 Y<input v-model.number="b.y1" @input="syncScript" type="number" min="0"></label><label>终点 X<input v-model.number="b.x2" @input="syncScript" type="number" min="0"></label><label>终点 Y<input v-model.number="b.y2" @input="syncScript" type="number" min="0"></label><label>时长(ms)<input v-model.number="b.duration" @input="syncScript" type="number" min="100" max="5000"></label></template><label v-if="b.type==='text'">输入内容<input v-model="b.text" @input="syncScript" maxlength="2000" placeholder="要输入的文字"></label><label v-if="b.type==='action'">动作<select v-model="b.action" @change="syncScript"><option value="BACK">返回</option><option value="HOME">主页</option><option value="RECENTS">最近任务</option><option value="NOTIFICATIONS">通知栏</option></select></label></div><div class="block-actions"><button @click="moveBlock(index,-1)" :disabled="index===0" title="上移">↑</button><button @click="moveBlock(index,1)" :disabled="index===blocks.length-1" title="下移">↓</button><button class="danger" @click="removeBlock(index)" title="删除">×</button></div></article></div><div v-else class="code-editor"><textarea v-model="script" spellcheck="false"></textarea><div class="code-tools"><button @click="importScript">转换为可视化流程</button><span class="muted">OPEN / WAIT / TAP / SWIPE / TEXT / BACK / HOME / RECENTS / NOTIFICATIONS</span></div></div><div class="workflow-run"><button @click="runScript" :disabled="!connected||!!activeRun||!blocks.length">▶ 运行流程</button><button class="danger" @click="cancelScript" :disabled="!activeRun">■ 停止</button><span v-if="activeRun" class="running">流程执行中…</span></div></div><aside class="workflow-side"><h2>流程预设</h2><div class="preset-save"><input v-model="presetName" placeholder="预设名称"><button @click="savePreset">保存</button></div><div v-for="p in presets" :key="p.name" class="preset"><button @click="loadPreset(p)">{{p.name}}</button><button class="danger small" @click="removePreset(p.name)">删除</button></div><p v-if="!presets.length" class="muted">暂无预设流程</p><div class="language-help"><h2>自动化语言</h2><code>OPEN 包名</code><code>WAIT 毫秒</code><code>TAP X Y</code><code>SWIPE X1 Y1 X2 Y2 时长</code><code>TEXT 文本</code><code>BACK / HOME</code></div></aside></section>
-      <section v-else-if="view==='devices'" class="device-page"><div class="page-heading"><span class="eyebrow">DEVICE ACCESS</span><h2>绑定移动设备</h2><p class="muted">创建设备凭证，将专属 Token 填入安卓客户端完成绑定</p></div><div class="device-page-grid"><section class="device-setup-card"><div class="module-title"><div><span class="module-icon">＋</span><div><h2>创建绑定</h2><p class="muted">每个 Token 只能绑定一台设备</p></div></div></div><form class="device-create" @submit.prevent="createEnrollment"><input v-model.trim="enrollmentName" maxlength="80" placeholder="设备名称，例如：测试机 01" required><button>创建设备</button></form><div v-if="newDeviceToken" class="token-box"><b>设备 Token（仅本次显示）</b><code>{{newDeviceToken}}</code><button @click="copyDeviceToken">复制 Token</button></div><div class="setup-guide"><span>1</span><p><b>创建设备凭证</b><small>输入便于识别的设备名称</small></p><span>2</span><p><b>复制专属 Token</b><small>Token 关闭页面后不再显示</small></p><span>3</span><p><b>在客户端完成绑定</b><small>填写服务器地址与 Token 后保存</small></p></div></section><section class="device-setup-card enrollment-module"><div class="module-title"><div><span class="module-icon">▣</span><div><h2>绑定记录</h2><p class="muted">查看凭证状态和已绑定设备</p></div></div><span class="module-count">{{enrollments.length}} 条记录</span></div><div class="enrollment-list"><article v-for="item in enrollments" :key="item.id"><div><b>{{item.name}}</b><small>{{item.deviceId?'设备 ID：'+item.deviceId:'等待设备连接'}}<br>创建：{{formatTime(item.createdAt)}}</small></div><span :class="item.deviceId?'status-pill bound':'status-pill'">{{item.deviceId?'已绑定':'未绑定'}}</span><button class="danger" @click="removeEnrollment(item)">删除</button></article><p v-if="!enrollments.length" class="empty-enrollments">暂无绑定记录，请先创建设备</p></div></section></div></section>
-      <section v-else-if="view==='bulk'" class="bulk-page"><div class="page-heading"><span class="eyebrow">BULK ACCOUNTS</span><h2>批量创建用户</h2><p class="muted">一次录入多个账号，统一设置角色并分别配置设备额度</p></div><div class="bulk-page-grid"><form class="bulk-form-card" @submit.prevent="createBulkUsers"><div class="module-title"><div><span class="module-icon">♙</span><div><h2>用户数据</h2><p class="muted">每行创建一个用户，最多处理 200 行</p></div></div></div><label>统一角色<select v-model="bulkRole"><option value="user">普通用户</option><option value="admin">管理员</option></select></label><label>用户列表<textarea v-model="bulkText" spellcheck="false" placeholder="用户名,密码,最大设备数"></textarea></label><button class="bulk-submit" type="submit">开始创建用户</button></form><aside class="bulk-side-card"><div class="module-title"><div><span class="module-icon">i</span><div><h2>填写说明</h2><p class="muted">使用英文逗号分隔字段</p></div></div></div><code>用户名,密码,最大设备数</code><ul><li>密码至少 8 位</li><li>设备数范围为 0–10000</li><li>空行会被自动忽略</li></ul><div v-if="bulkResult" class="bulk-result"><b v-if="bulkResult.error" class="bad">{{bulkResult.error}}</b><template v-else><div class="bulk-summary"><span><b>{{bulkResult.created}}</b>成功</span><span><b>{{bulkResult.failed}}</b>失败</span></div><small v-for="item in bulkResult.results.filter(item=>!item.ok)" :key="item.line">第 {{item.line}} 行 {{item.username||'（空用户名）'}}：{{item.error}}</small></template></div></aside></div></section>
-      <section v-else class="admin">
-        <div class="admin-heading"><div><span class="eyebrow">ADMIN CONSOLE</span><h2>后台管理</h2><p class="muted">集中管理用户账号、设备额度与设备归属</p></div><div class="admin-stats"><div><b>{{adminUsers.length}}</b><small>用户总数</small></div><div><b>{{adminDevices.length}}</b><small>设备总数</small></div><div><b>{{adminUsers.filter(u=>!u.banned).length}}</b><small>正常账号</small></div></div></div>
-        <div class="admin-grid">
-          <section class="admin-card user-module"><div class="module-title"><div><span class="module-icon">♙</span><div><h2>用户管理</h2><p class="muted">创建账号并维护角色、状态和设备额度</p></div></div><span class="module-count">{{adminUsers.length}} 位用户</span></div><form class="create-user" @submit.prevent="createUser"><input v-model.trim="newUser.username" placeholder="用户名" required><input v-model="newUser.password" type="password" placeholder="初始密码（至少 8 位）" required><select v-model="newUser.role"><option value="user">普通用户</option><option value="admin">管理员</option></select><input v-model.number="newUser.maxDevices" type="number" min="0" max="10000" title="最大设备数" placeholder="设备额度"><button>＋ 创建用户</button></form><div class="table-wrap"><table><thead><tr><th>用户</th><th>角色/状态</th><th>设备数</th><th>上次登录</th><th>操作</th></tr></thead><tbody><tr v-for="u in adminUsers" :key="u.id"><td><b>{{u.username}}</b><small>{{u.lastLoginIp||'—'}}<br>{{formatTime(u.createdAt)}}</small></td><td>{{u.role==='admin'?'管理员':'用户'}}<br><span :class="u.banned?'bad':'ok'">{{u.banned?'已封禁':'正常'}}</span></td><td><input class="number" type="number" min="0" max="10000" v-model.number="u.maxDevices" @change="updateUser(u,{maxDevices:u.maxDevices})"> / {{u.deviceCount}}</td><td>{{formatTime(u.lastLoginAt)}}</td><td class="row-actions"><button @click="changePassword(u)">改密码</button><button :class="u.banned?'secondary':'danger'" @click="updateUser(u,{banned:!u.banned})">{{u.banned?'解封':'封禁'}}</button><button class="danger" @click="deleteUser(u)">删除</button></td></tr></tbody></table></div></section>
-          <section class="admin-card device-module"><div class="module-title"><div><span class="module-icon">▣</span><div><h2>设备归属</h2><p class="muted">查看设备状态并分配所属用户</p></div></div><span class="module-count">{{adminDevices.length}} 台设备</span></div><div class="table-wrap"><table><thead><tr><th>设备</th><th>系统</th><th>最后出现</th><th>所属用户</th></tr></thead><tbody><tr v-for="d in adminDevices" :key="d.deviceId"><td><b>{{d.model}}</b><small>{{d.deviceId}}</small></td><td>Android {{d.androidVersion}}</td><td>{{formatTime(d.lastSeenAt)}}</td><td><select :value="d.userId||''" @change="assignDevice(d,$event.target.value)"><option value="">未分配</option><option v-for="u in adminUsers" :key="u.id" :value="u.id">{{u.username}}（{{u.deviceCount}}/{{u.maxDevices}}）</option></select></td></tr></tbody></table></div></section>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>小鱼 云群控</title>
+    <link rel="icon" href="/brand-icon.png" />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/gesture.css" />
+    <link rel="stylesheet" href="/brand.css" />
+    <link rel="stylesheet" href="/admin.css" />
+    <link rel="stylesheet" href="/modal.css" />
+    <link rel="stylesheet" href="/workflow.css" />
+    <link rel="stylesheet" href="/bulk.css" />
+    <link rel="stylesheet" href="/device-setup.css" />
+    <link rel="stylesheet" href="/redesign.css" />
+    <link rel="stylesheet" href="/topbar.css" />
+  </head>
+
+  <body>
+    <main id="app">
+      <header>
+        <div class="brand">
+          <img src="/brand-icon.png" alt="" />
+          <div>
+            <h1>小鱼 云群控</h1>
+            <small :class="connected?'ok':'bad'"
+              >{{connected?'服务器已连接':(connectionError||'连接断开')}}</small
+            >
+          </div>
         </div>
+        <section class="header-scope">
+          <span class="header-scope-title">操作范围</span
+          ><label
+            ><input type="radio" v-model="scope" value="all" /> 全部在线</label
+          ><label
+            ><input type="radio" v-model="scope" value="selected" /> 已选
+            {{selectedIds.length}} 台</label
+          ><label
+            ><input type="radio" v-model="scope" value="group" />
+            设备分组</label
+          ><select v-model="selectedGroupId" @change="scope='group'">
+            <option value="">选择分组</option>
+            <option v-for="g in groups" :key="g.id" :value="g.id">
+              {{g.name}}（{{g.deviceIds.length}}）
+            </option></select
+          ><button class="secondary" @click="selectOnline">全选在线</button
+          ><span class="scope-divider"></span
+          ><span class="header-scope-title">分组管理</span
+          ><input
+            class="new-group-input"
+            v-model="newGroupName"
+            placeholder="新分组名称"
+          /><button @click="createGroup">创建</button
+          ><button class="secondary" @click="assignGroup">保存设备</button
+          ><button class="header-danger" @click="deleteGroup">删除分组</button>
+        </section>
+        <nav class="header-account">
+          <button
+            class="theme-toggle"
+            @click="toggleTheme"
+            :title="theme==='dark'?'切换到白天模式':'切换到黑夜模式'"
+          >
+            {{theme==='dark'?'☀':'☾'}}</button
+          ><span class="user-chip"
+            ><i>{{currentUser.username?.slice(0,1).toUpperCase()}}</i
+            >{{currentUser.username}}</span
+          ><button class="secondary logout" @click="logout">退出</button>
+        </nav>
+      </header>
+      <section class="layout">
+        <aside>
+          <nav class="side-nav">
+            <span class="side-nav-title">功能菜单</span
+            ><button :class="{active:view==='wall'}" @click="view='wall'">
+              <span>◫</span><b>屏幕墙</b><small>设备实时画面</small></button
+            ><button
+              :class="{active:view==='automation'}"
+              @click="view='automation'"
+            >
+              <span>◇</span><b>自动化</b><small>编排执行流程</small></button
+            ><button
+              :class="{active:view==='devices'}"
+              @click="view='devices';newDeviceToken='';loadEnrollments()"
+            >
+              <span>＋</span><b>绑定设备</b><small>添加移动终端</small></button
+            ><button
+              v-if="currentUser.role==='admin'"
+              :class="{active:view==='admin'}"
+              @click="openAdmin"
+            >
+              <span>⚙</span><b>后台管理</b
+              ><small>用户与设备归属</small></button
+            ><button
+              v-if="currentUser.role==='admin'"
+              :class="{active:view==='bulk'}"
+              @click="view='bulk';bulkResult=null"
+            >
+              <span>♙</span><b>批量用户</b><small>快速创建账号</small>
+            </button>
+          </nav>
+          <div class="device-list-head">
+            <h2 class="device-heading">设备</h2>
+            <span>{{devices.length}}</span>
+          </div>
+          <input v-model="query" placeholder="搜索设备" />
+          <div
+            v-for="d in filteredDevices"
+            :key="d.deviceId"
+            class="device"
+            :class="{focused:target===d.deviceId}"
+          >
+            <input
+              type="checkbox"
+              :checked="selectedIds.includes(d.deviceId)"
+              @change="toggle(d.deviceId)"
+            /><button class="device-name" @click="select(d.deviceId)">
+              <span :class="d.online?'dot on':'dot'"></span><b>{{d.model}}</b
+              ><small>{{d.deviceId}} · Android {{d.androidVersion}}</small>
+            </button>
+          </div>
+          <p v-if="!filteredDevices.length" class="muted">暂无匹配设备</p>
+        </aside>
+        <section class="content">
+          <section v-if="view==='wall'" class="wall">
+            <article v-for="d in onlineDevices" :key="d.deviceId" class="tile">
+              <div class="tile-title">
+                <b>{{d.model}}</b
+                ><button @click="select(d.deviceId)">控制</button>
+              </div>
+              <img
+                v-if="frames[d.deviceId]"
+                :src="frames[d.deviceId].url"
+                :alt="d.model+' 实时画面'"
+              />
+              <div v-else class="waiting">等待画面…</div>
+            </article>
+            <p v-if="!onlineDevices.length" class="muted">暂无在线设备</p>
+          </section>
+          <section v-else-if="view==='control'" class="control">
+            <div class="phone-shell">
+              <div class="phone">
+                <img
+                  v-if="frames[target]"
+                  :src="frames[target].url"
+                  draggable="false"
+                  @pointerup="screenTap($event, devices.find(d=>d.deviceId===target))"
+                  alt="点击画面即可远程操作"
+                />
+                <p v-else>等待设备画面…</p>
+              </div>
+              <nav class="virtual-keys" aria-label="安卓虚拟导航键">
+                <button
+                  title="返回"
+                  @click="emitCommand({type:'globalAction',action:'BACK'})"
+                >
+                  ‹<small>返回</small></button
+                ><button
+                  title="主页"
+                  @click="emitCommand({type:'globalAction',action:'HOME'})"
+                >
+                  ○<small>主页</small></button
+                ><button
+                  title="最近任务"
+                  @click="emitCommand({type:'globalAction',action:'RECENTS'})"
+                >
+                  ▢<small>任务</small>
+                </button>
+              </nav>
+            </div>
+            <form @submit.prevent="emitCommand(commandFromForm())">
+              <h2>手动控制 → {{recipientLabel}}</h2>
+              <p class="muted">
+                点击设备画面操作；返回、主页和最近任务请使用画面下方虚拟键。
+              </p>
+              <label
+                >指令<select v-model="form.type">
+                  <option value="openApp">打开 App</option>
+                  <option value="tap">点击坐标</option>
+                  <option value="inputText">输入文本</option>
+                </select></label
+              >
+              <div v-if="form.type==='openApp'" class="app-picker">
+                <label
+                  >安装的软件<input
+                    v-model="appQuery"
+                    @focus="appPickerOpen=true"
+                    @keydown.esc="appPickerOpen=false"
+                    placeholder="搜索应用名称或包名"
+                    autocomplete="off"
+                    required
+                /></label>
+                <div v-if="appPickerOpen" class="app-options">
+                  <button
+                    v-for="app in matchingApps"
+                    :key="app.packageName"
+                    type="button"
+                    @pointerdown.prevent="chooseApp(app)"
+                  >
+                    <b>{{app.name}}</b><small>{{app.packageName}}</small>
+                  </button>
+                  <p v-if="!matchingApps.length">没有找到可启动的用户应用</p>
+                </div>
+                <small v-if="form.packageName" class="selected-app"
+                  >已选择：{{form.packageName}}</small
+                >
+              </div>
+              <template v-if="form.type==='tap'"
+                ><label
+                  >X<input
+                    v-model.number="form.x"
+                    type="number"
+                    min="0" /></label
+                ><label
+                  >Y<input
+                    v-model.number="form.y"
+                    type="number"
+                    min="0" /></label></template
+              ><label v-if="form.type==='inputText'"
+                >文本<input v-model="form.text" maxlength="2000" /></label
+              ><button
+                :disabled="!connected||form.type==='openApp'&&!form.packageName"
+              >
+                发送
+              </button>
+            </form>
+          </section>
+          <section v-else-if="view==='automation'" class="workflow">
+            <div class="workflow-main">
+              <div class="server-preset-panel">
+                <div>
+                  <h2>白名单测试互动</h2>
+                  <p class="muted">
+                    选择固定方案即可开始；需要微调坐标和频率时选择“自定义”
+                  </p>
+                </div>
+                <label
+                  >选择测试软件<select
+                    :value="selectedServerPreset"
+                    @change="selectServerPreset($event.target.value)"
+                  >
+                    <option
+                      v-for="p in serverPresets"
+                      :key="p.id"
+                      :value="p.id"
+                    >
+                      {{p.app}}
+                    </option>
+                  </select></label
+                ><label
+                  >互动方案<select
+                    :value="interactionMode"
+                    @change="applyInteractionMode($event.target.value)"
+                  >
+                    <option
+                      v-for="item in interactionModes"
+                      :key="item[0]"
+                      :value="item[0]"
+                    >
+                      {{item[1]}}
+                    </option>
+                  </select></label
+                ><label
+                  v-for="([key, rule]) in visiblePresetParameters"
+                  :key="key"
+                  :class="{wide:rule.type==='textarea'}"
+                  >{{rule.label}}<textarea
+                    v-if="rule.type==='textarea'"
+                    v-model="presetParameters[key]"
+                    rows="4"
+                  ></textarea
+                  ><input
+                    v-else-if="rule.type==='boolean'"
+                    v-model="presetParameters[key]"
+                    type="checkbox" /><input
+                    v-else-if="rule.type==='text'"
+                    v-model.trim="presetParameters[key]"
+                    type="text" /><input
+                    v-else
+                    v-model.number="presetParameters[key]"
+                    type="number"
+                    :min="rule.min"
+                    :max="rule.max" /></label
+                ><button
+                  @click="runServerPreset"
+                  :disabled="!connected||!!activeRun||!selectedServerPreset"
+                >
+                  ▶ 开始测试
+                </button>
+              </div>
+              <div class="workflow-head">
+                <div>
+                  <h2>自动化流程 → {{recipientLabel}}</h2>
+                  <p class="muted">按顺序执行，每个模块都是一个安全动作</p>
+                </div>
+                <div class="mode-tabs">
+                  <button
+                    :class="{active:automationMode==='visual'}"
+                    @click="automationMode='visual'"
+                  >
+                    可视化流程</button
+                  ><button
+                    :class="{active:automationMode==='code'}"
+                    @click="syncScript();automationMode='code'"
+                  >
+                    代码语言
+                  </button>
+                </div>
+              </div>
+              <div v-if="automationMode==='visual'" class="flow-builder">
+                <div class="add-block">
+                  <select v-model="newBlockType">
+                    <option v-for="item in blockCatalog" :value="item[0]">
+                      {{item[1]}}
+                    </option></select
+                  ><button @click="addBlock">＋ 添加流程模块</button>
+                </div>
+                <div v-if="!blocks.length" class="empty-flow">
+                  还没有流程模块，请从上方添加
+                </div>
+                <article
+                  v-for="(b,index) in blocks"
+                  :key="b.id"
+                  class="flow-block"
+                >
+                  <div class="flow-order">{{index+1}}</div>
+                  <div class="flow-fields">
+                    <b
+                      >{{({openApp:'打开应用',wait:'等待',tap:'点击坐标',swipe:'滑动',text:'输入文本',action:'系统动作'})[b.type]}}</b
+                    ><label v-if="b.type==='openApp'"
+                      >应用包名<input
+                        v-model.trim="b.packageName"
+                        @input="syncScript"
+                        placeholder="com.example.app" /></label
+                    ><label v-if="b.type==='wait'"
+                      >等待毫秒<input
+                        v-model.number="b.duration"
+                        @input="syncScript"
+                        type="number"
+                        min="0"
+                        max="60000" /></label
+                    ><template v-if="b.type==='tap'"
+                      ><label
+                        >X 坐标<input
+                          v-model.number="b.x"
+                          @input="syncScript"
+                          type="number"
+                          min="0" /></label
+                      ><label
+                        >Y 坐标<input
+                          v-model.number="b.y"
+                          @input="syncScript"
+                          type="number"
+                          min="0" /></label></template
+                    ><template v-if="b.type==='swipe'"
+                      ><label
+                        >起点 X<input
+                          v-model.number="b.x1"
+                          @input="syncScript"
+                          type="number"
+                          min="0" /></label
+                      ><label
+                        >起点 Y<input
+                          v-model.number="b.y1"
+                          @input="syncScript"
+                          type="number"
+                          min="0" /></label
+                      ><label
+                        >终点 X<input
+                          v-model.number="b.x2"
+                          @input="syncScript"
+                          type="number"
+                          min="0" /></label
+                      ><label
+                        >终点 Y<input
+                          v-model.number="b.y2"
+                          @input="syncScript"
+                          type="number"
+                          min="0" /></label
+                      ><label
+                        >时长(ms)<input
+                          v-model.number="b.duration"
+                          @input="syncScript"
+                          type="number"
+                          min="100"
+                          max="5000" /></label></template
+                    ><label v-if="b.type==='text'"
+                      >输入内容<input
+                        v-model="b.text"
+                        @input="syncScript"
+                        maxlength="2000"
+                        placeholder="要输入的文字" /></label
+                    ><label v-if="b.type==='action'"
+                      >动作<select v-model="b.action" @change="syncScript">
+                        <option value="BACK">返回</option>
+                        <option value="HOME">主页</option>
+                        <option value="RECENTS">最近任务</option>
+                        <option value="NOTIFICATIONS">通知栏</option>
+                      </select></label
+                    >
+                  </div>
+                  <div class="block-actions">
+                    <button
+                      @click="moveBlock(index,-1)"
+                      :disabled="index===0"
+                      title="上移"
+                    >
+                      ↑</button
+                    ><button
+                      @click="moveBlock(index,1)"
+                      :disabled="index===blocks.length-1"
+                      title="下移"
+                    >
+                      ↓</button
+                    ><button
+                      class="danger"
+                      @click="removeBlock(index)"
+                      title="删除"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="code-editor">
+                <textarea v-model="script" spellcheck="false"></textarea>
+                <div class="code-tools">
+                  <button @click="importScript">转换为可视化流程</button
+                  ><span class="muted"
+                    >OPEN / WAIT / TAP / SWIPE / TEXT / BACK / HOME / RECENTS /
+                    NOTIFICATIONS</span
+                  >
+                </div>
+              </div>
+              <div class="workflow-run">
+                <button
+                  @click="runScript"
+                  :disabled="!connected||!!activeRun||!blocks.length"
+                >
+                  ▶ 运行流程</button
+                ><button
+                  class="danger"
+                  @click="cancelScript"
+                  :disabled="!activeRun"
+                >
+                  ■ 停止</button
+                ><span v-if="activeRun" class="running">流程执行中…</span>
+              </div>
+            </div>
+            <aside class="workflow-side">
+              <h2>流程预设</h2>
+              <div class="preset-save">
+                <input v-model="presetName" placeholder="预设名称" /><button
+                  @click="savePreset"
+                >
+                  保存
+                </button>
+              </div>
+              <div v-for="p in presets" :key="p.name" class="preset">
+                <button @click="loadPreset(p)">{{p.name}}</button
+                ><button class="danger small" @click="removePreset(p.name)">
+                  删除
+                </button>
+              </div>
+              <p v-if="!presets.length" class="muted">暂无预设流程</p>
+              <div class="language-help">
+                <h2>自动化语言</h2>
+                <code>OPEN 包名</code><code>WAIT 毫秒</code><code>TAP X Y</code
+                ><code>SWIPE X1 Y1 X2 Y2 时长</code><code>TEXT 文本</code
+                ><code>BACK / HOME</code>
+              </div>
+            </aside>
+          </section>
+          <section v-else-if="view==='devices'" class="device-page">
+            <div class="page-heading">
+              <span class="eyebrow">DEVICE ACCESS</span>
+              <h2>绑定移动设备</h2>
+              <p class="muted">
+                创建设备凭证，将专属 Token 填入安卓客户端完成绑定
+              </p>
+            </div>
+            <div class="device-page-grid">
+              <section class="device-setup-card">
+                <div class="module-title">
+                  <div>
+                    <span class="module-icon">＋</span>
+                    <div>
+                      <h2>创建绑定</h2>
+                      <p class="muted">每个 Token 只能绑定一台设备</p>
+                    </div>
+                  </div>
+                </div>
+                <form class="device-create" @submit.prevent="createEnrollment">
+                  <input
+                    v-model.trim="enrollmentName"
+                    maxlength="80"
+                    placeholder="设备名称，例如：测试机 01"
+                    required
+                  /><button>创建设备</button>
+                </form>
+                <div v-if="newDeviceToken" class="token-box">
+                  <b>设备 Token（仅本次显示）</b><code>{{newDeviceToken}}</code
+                  ><button @click="copyDeviceToken">复制 Token</button>
+                </div>
+                <div class="setup-guide">
+                  <span>1</span>
+                  <p>
+                    <b>创建设备凭证</b><small>输入便于识别的设备名称</small>
+                  </p>
+                  <span>2</span>
+                  <p>
+                    <b>复制专属 Token</b><small>Token 关闭页面后不再显示</small>
+                  </p>
+                  <span>3</span>
+                  <p>
+                    <b>在客户端完成绑定</b
+                    ><small>填写服务器地址与 Token 后保存</small>
+                  </p>
+                </div>
+              </section>
+              <section class="device-setup-card enrollment-module">
+                <div class="module-title">
+                  <div>
+                    <span class="module-icon">▣</span>
+                    <div>
+                      <h2>绑定记录</h2>
+                      <p class="muted">查看凭证状态和已绑定设备</p>
+                    </div>
+                  </div>
+                  <span class="module-count"
+                    >{{enrollments.length}} 条记录</span
+                  >
+                </div>
+                <div class="enrollment-list">
+                  <article v-for="item in enrollments" :key="item.id">
+                    <div>
+                      <b>{{item.name}}</b
+                      ><small
+                        ><template v-if="item.deviceId"
+                          >设备 ID：{{item.deviceId}}</template
+                        ><template v-else>等待设备连接</template
+                        ><br />创建：{{formatTime(item.createdAt)}}</small
+                      >
+                    </div>
+                    <span
+                      :class="item.deviceId?'status-pill bound':'status-pill'"
+                      >{{item.deviceId?'已绑定':'未绑定'}}</span
+                    ><button class="danger" @click="removeEnrollment(item)">
+                      删除
+                    </button>
+                  </article>
+                  <p v-if="!enrollments.length" class="empty-enrollments">
+                    暂无绑定记录，请先创建设备
+                  </p>
+                </div>
+              </section>
+            </div>
+          </section>
+          <section v-else-if="view==='bulk'" class="bulk-page">
+            <div class="page-heading">
+              <span class="eyebrow">BULK ACCOUNTS</span>
+              <h2>批量创建用户</h2>
+              <p class="muted">
+                一次录入多个账号，统一设置角色并分别配置设备额度
+              </p>
+            </div>
+            <div class="bulk-page-grid">
+              <form class="bulk-form-card" @submit.prevent="createBulkUsers">
+                <div class="module-title">
+                  <div>
+                    <span class="module-icon">♙</span>
+                    <div>
+                      <h2>用户数据</h2>
+                      <p class="muted">每行创建一个用户，最多处理 200 行</p>
+                    </div>
+                  </div>
+                </div>
+                <label
+                  >统一角色<select v-model="bulkRole">
+                    <option value="user">普通用户</option>
+                    <option value="admin">管理员</option>
+                  </select></label
+                ><label
+                  >用户列表<textarea
+                    v-model="bulkText"
+                    spellcheck="false"
+                    placeholder="用户名,密码,最大设备数"
+                  ></textarea></label
+                ><button class="bulk-submit" type="submit">开始创建用户</button>
+              </form>
+              <aside class="bulk-side-card">
+                <div class="module-title">
+                  <div>
+                    <span class="module-icon">i</span>
+                    <div>
+                      <h2>填写说明</h2>
+                      <p class="muted">使用英文逗号分隔字段</p>
+                    </div>
+                  </div>
+                </div>
+                <code>用户名,密码,最大设备数</code>
+                <ul>
+                  <li>密码至少 8 位</li>
+                  <li>设备数范围为 0–10000</li>
+                  <li>空行会被自动忽略</li>
+                </ul>
+                <div v-if="bulkResult" class="bulk-result">
+                  <b v-if="bulkResult.error" class="bad">{{bulkResult.error}}</b
+                  ><template v-else>
+                    <div class="bulk-summary">
+                      <span><b>{{bulkResult.created}}</b>成功</span
+                      ><span><b>{{bulkResult.failed}}</b>失败</span>
+                    </div>
+                    <small
+                      v-for="item in bulkResult.results.filter(item=>!item.ok)"
+                      :key="item.line"
+                      >第 {{item.line}} 行
+                      {{item.username||'（空用户名）'}}：{{item.error}}</small
+                    >
+                  </template>
+                </div>
+              </aside>
+            </div>
+          </section>
+          <section v-else class="admin">
+            <div class="admin-heading">
+              <div>
+                <span class="eyebrow">ADMIN CONSOLE</span>
+                <h2>后台管理</h2>
+                <p class="muted">集中管理用户账号、设备额度与设备归属</p>
+              </div>
+              <div class="admin-stats">
+                <div><b>{{adminUsers.length}}</b><small>用户总数</small></div>
+                <div><b>{{adminDevices.length}}</b><small>设备总数</small></div>
+                <div>
+                  <b>{{adminUsers.filter(u=>!u.banned).length}}</b
+                  ><small>正常账号</small>
+                </div>
+              </div>
+            </div>
+            <div class="admin-grid">
+              <section class="admin-card user-module">
+                <div class="module-title">
+                  <div>
+                    <span class="module-icon">♙</span>
+                    <div>
+                      <h2>用户管理</h2>
+                      <p class="muted">创建账号并维护角色、状态和设备额度</p>
+                    </div>
+                  </div>
+                  <span class="module-count">{{adminUsers.length}} 位用户</span>
+                </div>
+                <form class="create-user" @submit.prevent="createUser">
+                  <input
+                    v-model.trim="newUser.username"
+                    placeholder="用户名"
+                    required
+                  /><input
+                    v-model="newUser.password"
+                    type="password"
+                    placeholder="初始密码（至少 8 位）"
+                    required
+                  /><select v-model="newUser.role">
+                    <option value="user">普通用户</option>
+                    <option value="admin">管理员</option></select
+                  ><input
+                    v-model.number="newUser.maxDevices"
+                    type="number"
+                    min="0"
+                    max="10000"
+                    title="最大设备数"
+                    placeholder="设备额度"
+                  /><button>＋ 创建用户</button>
+                </form>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>用户</th>
+                        <th>角色/状态</th>
+                        <th>设备数</th>
+                        <th>上次登录</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="u in adminUsers" :key="u.id">
+                        <td>
+                          <b>{{u.username}}</b
+                          ><small
+                            >{{u.lastLoginIp||'—'}}<br />{{formatTime(u.createdAt)}}</small
+                          >
+                        </td>
+                        <td>
+                          {{u.role==='admin'?'管理员':'用户'}}<br /><span
+                            :class="u.banned?'bad':'ok'"
+                            >{{u.banned?'已封禁':'正常'}}</span
+                          >
+                        </td>
+                        <td>
+                          <input
+                            class="number"
+                            type="number"
+                            min="0"
+                            max="10000"
+                            v-model.number="u.maxDevices"
+                            @change="updateUser(u,{maxDevices:u.maxDevices})"
+                          />
+                          / {{u.deviceCount}}
+                        </td>
+                        <td>{{formatTime(u.lastLoginAt)}}</td>
+                        <td class="row-actions">
+                          <button @click="changePassword(u)">改密码</button
+                          ><button
+                            :class="u.banned?'secondary':'danger'"
+                            @click="updateUser(u,{banned:!u.banned})"
+                          >
+                            {{u.banned?'解封':'封禁'}}</button
+                          ><button class="danger" @click="deleteUser(u)">
+                            删除
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              <section class="admin-card device-module">
+                <div class="module-title">
+                  <div>
+                    <span class="module-icon">▣</span>
+                    <div>
+                      <h2>设备归属</h2>
+                      <p class="muted">查看设备状态并分配所属用户</p>
+                    </div>
+                  </div>
+                  <span class="module-count"
+                    >{{adminDevices.length}} 台设备</span
+                  >
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>设备</th>
+                        <th>系统</th>
+                        <th>最后出现</th>
+                        <th>所属用户</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="d in adminDevices" :key="d.deviceId">
+                        <td><b>{{d.model}}</b><small>{{d.deviceId}}</small></td>
+                        <td>Android {{d.androidVersion}}</td>
+                        <td>{{formatTime(d.lastSeenAt)}}</td>
+                        <td>
+                          <select
+                            :value="d.userId||''"
+                            @change="assignDevice(d,$event.target.value)"
+                          >
+                            <option value="">未分配</option>
+                            <option
+                              v-for="u in adminUsers"
+                              :key="u.id"
+                              :value="u.id"
+                            >
+                              {{u.username}}（{{u.deviceCount}}/{{u.maxDevices}}）
+                            </option>
+                          </select>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </section>
+          <section class="log">
+            <div class="log-head">
+              <div>
+                <h2>执行记录</h2>
+                <span>{{logs.length}} 条最近记录</span>
+              </div>
+              <button v-if="logs.length" class="secondary" @click="clearLogs">
+                清空
+              </button>
+            </div>
+            <div class="log-list">
+              <article
+                v-for="line in logs"
+                :key="line.id"
+                :class="line.text.startsWith('✓')?'success':line.text.startsWith('✗')?'failed':'info'"
+              >
+                <i
+                  >{{line.text.startsWith('✓')?'✓':line.text.startsWith('✗')?'!':'·'}}</i
+                >
+                <p>{{line.text.replace(/^[✓✗]\s*/, '')}}</p>
+                <time>{{formatTime(line.time)}}</time>
+              </article>
+              <div v-if="!logs.length" class="log-empty">
+                <span>◇</span><b>暂无执行记录</b
+                ><small>发送指令或运行自动化后，结果会显示在这里</small>
+              </div>
+            </div>
+          </section>
+        </section>
       </section>
-      <section class="log"><div class="log-head"><div><h2>执行记录</h2><span>{{logs.length}} 条最近记录</span></div><button v-if="logs.length" class="secondary" @click="clearLogs">清空</button></div><div class="log-list"><article v-for="line in logs" :key="line.id" :class="line.text.startsWith('✓')?'success':line.text.startsWith('✗')?'failed':'info'"><i>{{line.text.startsWith('✓')?'✓':line.text.startsWith('✗')?'!':'·'}}</i><p>{{line.text.replace(/^[✓✗]\s*/, '')}}</p><time>{{formatTime(line.time)}}</time></article><div v-if="!logs.length" class="log-empty"><span>◇</span><b>暂无执行记录</b><small>发送指令或运行自动化后，结果会显示在这里</small></div></div></section>
-    </section>
-  </section>
-  <div v-if="modal.open" class="modal-backdrop" @click.self="closeModal()"><form class="modal-card" :class="{dangerous:modal.danger}" @submit.prevent="submitModal"><div class="modal-icon">{{modal.danger?'!':'✦'}}</div><h2>{{modal.title}}</h2><p>{{modal.message}}</p><label v-if="modal.input">新密码<input v-model="modal.value" type="password" minlength="8" autocomplete="new-password" placeholder="至少 8 位" autofocus></label><small v-if="modal.error" class="modal-error">{{modal.error}}</small><div class="modal-actions"><button type="button" class="secondary" @click="closeModal()">取消</button><button :class="{danger:modal.danger}" type="submit">{{modal.danger?'确认删除':'确认'}}</button></div></form></div>
-</main><script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script><script src="/socket.io/socket.io.js"></script><script src="/app.js"></script></body></html>
+      <div v-if="modal.open" class="modal-backdrop" @click.self="closeModal()">
+        <form
+          class="modal-card"
+          :class="{dangerous:modal.danger}"
+          @submit.prevent="submitModal"
+        >
+          <div class="modal-icon">{{modal.danger?'!':'✦'}}</div>
+          <h2>{{modal.title}}</h2>
+          <p>{{modal.message}}</p>
+          <label v-if="modal.input"
+            >新密码<input
+              v-model="modal.value"
+              type="password"
+              minlength="8"
+              autocomplete="new-password"
+              placeholder="至少 8 位"
+              autofocus /></label
+          ><small v-if="modal.error" class="modal-error">{{modal.error}}</small>
+          <div class="modal-actions">
+            <button type="button" class="secondary" @click="closeModal()">
+              取消</button
+            ><button :class="{danger:modal.danger}" type="submit">
+              {{modal.danger?'确认删除':'确认'}}
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

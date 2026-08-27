@@ -1,26 +1,44 @@
 # Node / server runtime
-server/node_modules/
-server/.env
-server/*.log
-server/data/*.json
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+coverage/
+server/data/
 
 # Android / Gradle generated files
 android/.gradle/
 android/.kotlin/
 android/local.properties
 android/**/build/
+android/captures/
+.gradle/
+build/
 *.apk
 *.aab
 *.iml
 .idea/
 
-# Local tools and editor/OS files
+# Local development and diagnostic files
 .tools/
 .codex-zh-compat/
+.codex-edge-profile*/
+.tmp-*/
+frontend-debug.png
 .vscode/
+
+# Editor / OS files
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 # Keep final handoff artifacts
 !release/

@@ -39,6 +39,76 @@
   max-height: none;
 }
 
+.error-toast {
+  position: fixed;
+  z-index: 900;
+  top: 92px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  min-width: 420px;
+  max-width: min(calc(100vw - 32px), 620px);
+  translate: -50% 0;
+  padding: 14px 18px;
+  color: #fff;
+  background: color-mix(in srgb, var(--danger) 88%, #111);
+  border: 1px solid color-mix(in srgb, var(--danger) 75%, #fff);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--danger) 38%, transparent);
+  animation: error-toast-in .22s ease-out, error-toast-out .8s ease-in 4.2s forwards;
+}
+
+.error-toast i {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: var(--danger);
+  background: #fff;
+  border-radius: 50%;
+  font-size: 25px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.error-toast div,
+.error-toast span {
+  display: block;
+  min-width: 0;
+}
+
+.error-toast div {
+  align-self: center;
+  line-height: 1.35;
+}
+
+.error-toast b {
+  font-size: 16px;
+}
+
+.error-toast span {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+@keyframes error-toast-in {
+  from { opacity: 0; transform: translateY(-18px); }
+}
+
+@keyframes error-toast-out {
+  to { opacity: 0; transform: translateY(-12px); }
+}
+
+@media (max-width: 500px) {
+  .error-toast {
+    width: calc(100vw - 24px);
+    min-width: 0;
+    padding: 12px 14px;
+  }
+}
+
 .log-head,
 .log-head > div {
   display: flex;
@@ -110,8 +180,29 @@
 }
 
 .log-list .failed i {
+  color: #fff;
+  background: var(--danger);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--danger) 65%, transparent);
+}
+
+.log-list article.failed {
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+  border-left: 5px solid var(--danger);
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.log-list article.failed:hover {
+  background: color-mix(in srgb, var(--danger) 25%, var(--surface));
+}
+
+.log-list .failed p {
   color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.log-list .failed time {
+  color: color-mix(in srgb, var(--danger) 75%, var(--text));
 }
 
 .log-list p {

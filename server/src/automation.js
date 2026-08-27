@@ -40,10 +40,11 @@ function testParameters(app) {
         };
   return {
     count: {
-      label: "测试内容数",
-      min: 1,
-      max: 20,
+      label: "测试内容数（-1 持续运行）",
+      min: -1,
+      max: 1000,
       default: 5,
+      allowInfinite: true,
     },
     startDelaySeconds: {
       label: "启动等待（秒）",
@@ -128,12 +129,12 @@ function testParameters(app) {
     swipeStart: {
       type: "text",
       label: "滑动起点 X,Y",
-      default: "0.50,0.78",
+      default: "0.50,0.59",
     },
     swipeEnd: {
       type: "text",
       label: "滑动终点 X,Y",
-      default: "0.50,0.25",
+      default: "0.50,0.41",
     },
     returnHome: {
       type: "boolean",
@@ -173,8 +174,15 @@ export function buildAutomationPreset(id, values = {}) {
         ];
       if (rule.type) return [key, String(values[key] ?? rule.default).trim()];
       const value = Number(values[key] ?? rule.default);
-      if (!Number.isInteger(value) || value < rule.min || value > rule.max)
-        throw new Error(`${rule.label}应为 ${rule.min}-${rule.max} 的整数`);
+      if (
+        !Number.isInteger(value) ||
+        value < rule.min ||
+        value > rule.max ||
+        (rule.allowInfinite && value === 0)
+      )
+        throw new Error(
+          `${rule.label}应为 ${rule.allowInfinite ? "-1 或 1-1000" : `${rule.min}-${rule.max}`} 的整数`,
+        );
       return [key, value];
     }),
   );
@@ -213,7 +221,26 @@ export function buildAutomationPreset(id, values = {}) {
       wait: params.startDelaySeconds * 1000,
     },
   ];
-  for (let index = 0; index < params.count; index++) {
+  const infinite = params.count === -1;
+  const interactionItems = infinite
+    ? Math.max(
+        params.likeEvery * params.maxLikes,
+        params.followEvery * params.maxFollows,
+        params.commentEvery * Math.min(params.maxComments, comments.length),
+        1,
+      )
+    : params.count;
+  const swipe = {
+    command: {
+      type: "swipeRelative",
+      x1: points.swipeStart.x,
+      y1: points.swipeStart.y,
+      x2: points.swipeEnd.x,
+      y2: points.swipeEnd.y,
+      duration: params.swipeDuration,
+    },
+  };
+  for (let index = 0; index < interactionItems; index++) {
     steps.push({
       wait: params.staySeconds * 1000,
     });
@@ -295,19 +322,13 @@ export function buildAutomationPreset(id, values = {}) {
       );
       counts.comments++;
     }
-    if (index < params.count - 1)
-      steps.push({
-        command: {
-          type: "swipeRelative",
-          x1: points.swipeStart.x,
-          y1: points.swipeStart.y,
-          x2: points.swipeEnd.x,
-          y2: points.swipeEnd.y,
-          duration: params.swipeDuration,
-        },
-      });
+    if (infinite || index < interactionItems - 1) steps.push(swipe);
   }
-  if (params.returnHome)
+  if (infinite)
+    steps.push({
+      repeat: [{ wait: params.staySeconds * 1000 }, swipe],
+    });
+  else if (params.returnHome)
     steps.push({
       command: {
         type: "globalAction",
@@ -387,11 +408,14 @@ export function parseAutomation(source) {
 }
 
 export async function runAutomation(steps, execute, signal) {
-  for (let i = 0; i < steps.length; i++) {
+  async function runStep(step, index) {
     if (signal.aborted) throw new Error("脚本已取消");
-    const step = steps[i];
+    if (step.repeat) {
+      while (true)
+        for (const nested of step.repeat) await runStep(nested, index);
+    }
     if (step.wait !== undefined)
-      await new Promise((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         const finish = () => {
           signal.removeEventListener("abort", cancel);
           resolve();
@@ -405,6 +429,9 @@ export async function runAutomation(steps, execute, signal) {
           once: true,
         });
       });
-    else await execute(step.command, i);
+    return execute(step.command, index);
+  }
+  for (let i = 0; i < steps.length; i++) {
+    await runStep(steps[i], i);
   }
 }

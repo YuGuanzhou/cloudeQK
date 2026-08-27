@@ -14,11 +14,28 @@
     <link rel="stylesheet" href="/bulk.css" />
     <link rel="stylesheet" href="/device-setup.css" />
     <link rel="stylesheet" href="/redesign.css" />
-    <link rel="stylesheet" href="/topbar.css" />
+    <link rel="stylesheet" href="/topbar.css?v=20260827-3" />
+    <style>
+      .wall { grid-template-columns: repeat(var(--wall-columns, 5), minmax(0, 1fr)); }
+      .wall-tools { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--muted); font-size: 13px; }
+      .wall-tools button { width: 36px; height: 36px; padding: 0; font-size: 20px; }
+      .tile[role="button"] { cursor: pointer; outline: none; }
+      .tile[role="button"]:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+    </style>
   </head>
 
   <body>
     <main id="app">
+      <div
+        v-if="errorToast"
+        :key="errorToast.id"
+        class="error-toast"
+        :style="{left:errorToast.left+'px'}"
+        role="alert"
+        aria-live="assertive"
+      >
+        <i>!</i><div><b>操作失败</b><span>{{errorToast.text}}</span></div>
+      </div>
       <header>
         <div class="brand">
           <img src="/brand-icon.png" alt="" />
@@ -122,11 +139,27 @@
           <p v-if="!filteredDevices.length" class="muted">暂无匹配设备</p>
         </aside>
         <section class="content">
-          <section v-if="view==='wall'" class="wall">
-            <article v-for="d in onlineDevices" :key="d.deviceId" class="tile">
+          <section
+            v-if="view==='wall'"
+            class="wall"
+            :style="{'--wall-columns':wallColumns}"
+          >
+            <div class="wall-tools">
+              <span>画面大小</span>
+              <button class="secondary" :disabled="wallColumns>=8" @click="resizeWall(-1)" aria-label="缩小单个手机画面">−</button>
+              <button class="secondary" :disabled="wallColumns<=2" @click="resizeWall(1)" aria-label="放大单个手机画面">＋</button>
+            </div>
+            <article
+              v-for="d in onlineDevices"
+              :key="d.deviceId"
+              class="tile"
+              role="button"
+              tabindex="0"
+              @click="select(d.deviceId)"
+              @keydown.enter="select(d.deviceId)"
+            >
               <div class="tile-title">
-                <b>{{d.model}}</b
-                ><button @click="select(d.deviceId)">控制</button>
+                <b>{{d.model}}</b>
               </div>
               <img
                 v-if="frames[d.deviceId]"
@@ -138,14 +171,19 @@
             <p v-if="!onlineDevices.length" class="muted">暂无在线设备</p>
           </section>
           <section v-else-if="view==='control'" class="control">
-            <div class="phone-shell">
+            <div
+              class="phone-shell"
+              :style="frames[target] ? {'--screen-ratio':frames[target].width/frames[target].height} : null"
+            >
               <div class="phone">
                 <img
                   v-if="frames[target]"
                   :src="frames[target].url"
                   draggable="false"
-                  @pointerup="screenTap($event, devices.find(d=>d.deviceId===target))"
-                  alt="点击画面即可远程操作"
+                  @pointerdown="screenTouchStart($event, devices.find(d=>d.deviceId===target))"
+                  @pointerup="screenTouchEnd($event, devices.find(d=>d.deviceId===target))"
+                  @pointercancel="screenTouchCancel"
+                  alt="触摸画面即可远程操作"
                 />
                 <p v-else>等待设备画面…</p>
               </div>
@@ -167,11 +205,26 @@
                   ▢<small>任务</small>
                 </button>
               </nav>
+              <form class="remote-keyboard" @submit.prevent="sendRemoteText">
+                <label for="remote-text">电脑键盘输入</label>
+                <div>
+                  <textarea
+                    id="remote-text"
+                    v-model="remoteText"
+                    maxlength="2000"
+                    rows="2"
+                    placeholder="先点手机输入框，再在这里输入文字"
+                    @keydown.ctrl.enter.prevent="sendRemoteText"
+                  ></textarea>
+                  <button :disabled="!remoteText||!connected">输入到手机</button>
+                </div>
+                <small>支持中文、英文和符号，Ctrl + Enter 快速发送</small>
+              </form>
             </div>
             <form @submit.prevent="emitCommand(commandFromForm())">
               <h2>手动控制 → {{recipientLabel}}</h2>
               <p class="muted">
-                点击设备画面操作；返回、主页和最近任务请使用画面下方虚拟键。
+                可直接点按或滑动画面；返回、主页和最近任务请使用画面下方虚拟键。
               </p>
               <label
                 >指令<select v-model="form.type">
@@ -835,6 +888,6 @@
     </main>
     <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=20260827-3"></script>
   </body>
 </html>

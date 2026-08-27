@@ -58,8 +58,11 @@ createApp({
       selectedIds = ref([]),
       newGroupName = ref(""),
       query = ref(""),
+      wallColumns = ref(5),
       frames = ref({}),
-      logs = ref([]);
+      logs = ref([]),
+      errorToast = ref(null),
+      remoteText = ref("");
     const form = ref({
         type: "openApp",
         packageName: "",
@@ -180,6 +183,7 @@ createApp({
           deviceId: d.deviceId,
         });
     };
+    let errorToastTimer;
     const log = (text) => {
       logs.value.unshift({
         id: crypto.randomUUID(),
@@ -187,6 +191,16 @@ createApp({
         time: Date.now(),
       });
       logs.value = logs.value.slice(0, 100);
+      if (text.startsWith("✗")) {
+        const phone = document.querySelector(".phone-shell")?.getBoundingClientRect();
+        errorToast.value = {
+          id: crypto.randomUUID(),
+          text: text.replace(/^✗\s*/, ""),
+          left: phone ? phone.left + phone.width / 2 : innerWidth / 2,
+        };
+        clearTimeout(errorToastTimer);
+        errorToastTimer = setTimeout(() => (errorToast.value = null), 5000);
+      }
     };
     const clearLogs = () => {
       logs.value = [];
@@ -240,9 +254,12 @@ createApp({
           },
         }),
     );
-    socket.on("command:result", (r) =>
-      log(`${r.ok ? "✓" : "✗"} ${r.deviceId}: ${r.message}`),
-    );
+    const pendingCommands = new Map();
+    socket.on("command:result", (r) => {
+      clearTimeout(pendingCommands.get(r.requestId));
+      pendingCommands.delete(r.requestId);
+      log(`${r.ok ? "✓" : "✗"} ${r.deviceId}: ${r.message}`);
+    });
     socket.on("automation:progress", (r) => {
       if (r.runId === activeRun.value) log(`自动化进度 ${r.step}/${r.total}`);
     });
@@ -490,6 +507,10 @@ createApp({
       view.value = "control";
     }
 
+    function resizeWall(amount) {
+      wallColumns.value = Math.min(8, Math.max(2, wallColumns.value - amount));
+    }
+
     function toggle(id) {
       selectedIds.value = selectedIds.value.includes(id)
         ? selectedIds.value.filter((x) => x !== id)
@@ -713,23 +734,39 @@ createApp({
     }
 
     function emitCommand(command) {
-      if (!recipients().length) return log("当前操作范围没有设备");
+      if (!recipients().length) return log("✗ 当前操作范围没有设备");
+      const requestId = crypto.randomUUID();
+      pendingCommands.set(
+        requestId,
+        setTimeout(() => {
+          pendingCommands.delete(requestId);
+          log("✗ 设备未返回执行结果，请检查客户端连接状态");
+        }, 1500),
+      );
       socket.timeout(5000).emit(
         "command:send",
         {
-          requestId: crypto.randomUUID(),
+          requestId,
           deviceIds: recipients(),
           command,
         },
-        (error, result) =>
-          log(
-            error
-              ? "服务器响应超时"
-              : result.ok
-                ? `已投递 ${result.delivered} 台设备`
-                : result.error,
-          ),
+        (error, result) => {
+          if (error || !result?.ok || !result.delivered) {
+            clearTimeout(pendingCommands.get(requestId));
+            pendingCommands.delete(requestId);
+            return log(
+              `✗ ${error ? "服务器响应超时" : result?.error || "没有在线设备可接收指令"}`,
+            );
+          }
+          log(`已投递 ${result.delivered} 台设备`);
+        },
       );
+    }
+
+    function sendRemoteText() {
+      if (!remoteText.value || !recipients().length) return;
+      emitCommand({ type: "inputText", text: remoteText.value });
+      remoteText.value = "";
     }
 
     function relativePoint(event, device) {
@@ -755,13 +792,48 @@ createApp({
           };
     }
 
-    function screenTap(event, device) {
-      const point = relativePoint(event, device);
-      if (point)
-        emitCommand({
-          type: "tapRelative",
-          ...point,
-        });
+    let screenGesture = null;
+
+    function screenTouchStart(event, device) {
+      const point = device && relativePoint(event, device);
+      if (!point) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      screenGesture = {
+        point,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        startedAt: performance.now(),
+      };
+    }
+
+    function screenTouchEnd(event, device) {
+      if (!screenGesture || !device) return;
+      const start = screenGesture,
+        end = relativePoint(event, device);
+      screenGesture = null;
+      if (!end) return;
+      const moved = Math.hypot(
+        event.clientX - start.clientX,
+        event.clientY - start.clientY,
+      );
+      emitCommand(
+        moved < 8
+          ? { type: "tapRelative", ...end }
+          : {
+              type: "swipeRelative",
+              x1: start.point.x,
+              y1: start.point.y,
+              x2: end.x,
+              y2: end.y,
+              duration: Math.round(
+                Math.min(5000, Math.max(100, performance.now() - start.startedAt)),
+              ),
+            },
+      );
+    }
+
+    function screenTouchCancel() {
+      screenGesture = null;
     }
 
     function runScript() {
@@ -903,8 +975,11 @@ createApp({
       newGroupName,
       recipientLabel,
       query,
+      wallColumns,
       frames,
       logs,
+      errorToast,
+      remoteText,
       form,
       appQuery,
       appPickerOpen,
@@ -936,15 +1011,19 @@ createApp({
       theme,
       toggleTheme,
       select,
+      resizeWall,
       toggle,
       selectOnline,
       createGroup,
       assignGroup,
       deleteGroup,
       emitCommand,
+      sendRemoteText,
       commandFromForm,
       chooseApp,
-      screenTap,
+      screenTouchStart,
+      screenTouchEnd,
+      screenTouchCancel,
       runScript,
       runServerPreset,
       cancelScript,

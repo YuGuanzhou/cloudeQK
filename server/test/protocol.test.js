@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validCommand } from "../src/protocol.js";
-import { buildAutomationPreset, parseAutomation } from "../src/automation.js";
+import {
+  buildAutomationPreset,
+  parseAutomation,
+  runAutomation,
+} from "../src/automation.js";
 import { friendlyDeviceToken } from "../src/auth.js";
 
 test("only accepts supported, bounded commands", () => {
@@ -123,18 +127,9 @@ test("parses the bounded automation DSL", () => {
   ]);
 });
 
-test("generates readable, strong device tokens", () => {
-  const tokens = new Set(
-    Array.from(
-      {
-        length: 100,
-      },
-      friendlyDeviceToken,
-    ),
-  );
-  assert.equal(tokens.size, 100);
-  for (const token of tokens)
-    assert.match(token, /^[a-z]{7}-[a-z]{7}-[a-z]{7}$/);
+test("generates short alphanumeric device tokens", () => {
+  for (let index = 0; index < 100; index += 1)
+    assert.match(friendlyDeviceToken(), /^[A-Za-z0-9]{3,5}$/);
 });
 
 test("builds bounded server presets", () => {
@@ -148,6 +143,10 @@ test("builds bounded server presets", () => {
     comments: "甲\n乙",
   });
   assert.equal(steps[0].command.packageName, "com.ss.android.ugc.test");
+  assert.equal(
+    steps.find((step) => step.command?.type === "swipeRelative").command.y2,
+    0.41,
+  );
   assert.equal(
     steps.some((step) => step.command?.type === "inputText"),
     true,
@@ -170,9 +169,13 @@ test("builds bounded server presets", () => {
   assert.throws(
     () =>
       buildAutomationPreset("xiaohongshu-test", {
-        count: 100,
+        count: 1001,
       }),
     /测试内容数/,
+  );
+  assert.throws(
+    () => buildAutomationPreset("xiaohongshu-test", { count: 0 }),
+    /-1 或 1-1000/,
   );
   assert.throws(
     () =>
@@ -182,4 +185,21 @@ test("builds bounded server presets", () => {
     /点赞坐标/,
   );
   assert.throws(() => buildAutomationPreset("unknown"), /不存在/);
+});
+
+test("runs an infinite preset until cancelled", async () => {
+  const steps = buildAutomationPreset("douyin-test", {
+    count: -1,
+    staySeconds: 2,
+    likeEvery: 0,
+    followEvery: 0,
+    commentEvery: 0,
+  });
+  assert.equal(steps.at(-1).repeat.length, 2);
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    runAutomation(steps, async () => {}, controller.signal),
+    /脚本已取消/,
+  );
 });

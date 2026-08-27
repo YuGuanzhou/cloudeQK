@@ -37,7 +37,6 @@ export function requireAdmin(req, res, next) { return req.user?.role === "admin"
 export const me = user => publicUser(user);
 
 export function friendlyDeviceToken() {
-  const consonants = "bcdfghjkmnprstvwxyz", vowels = "aeiou";
-  const word = () => [consonants, vowels, consonants, vowels, consonants, vowels, consonants].map(chars => chars[crypto.randomInt(chars.length)]).join("");
-  return `${word()}-${word()}-${word()}`;
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from({ length: crypto.randomInt(3, 6) }, () => chars[crypto.randomInt(chars.length)]).join("");
 }

@@ -282,9 +282,9 @@
             <div class="workflow-main">
               <div class="server-preset-panel">
                 <div>
-                  <h2>白名单测试互动</h2>
+                  <h2>白名单测试养号</h2>
                   <p class="muted">
-                    选择固定方案即可开始；需要微调坐标和频率时选择“自定义”
+                    随机养号按频率互动；关键词养号识别视频画面，命中后点赞
                   </p>
                 </div>
                 <label
@@ -301,6 +301,11 @@
                     </option>
                   </select></label
                 ><label
+                  >养号方式<select v-model="nurtureStrategy">
+                    <option value="random">随机养号</option>
+                    <option value="keyword">关键词养号（OCR）</option>
+                  </select></label
+                ><label v-if="nurtureStrategy==='random'"
                   >互动方案<select
                     :value="interactionMode"
                     @change="applyInteractionMode($event.target.value)"
@@ -313,6 +318,13 @@
                       {{item[1]}}
                     </option>
                   </select></label
+                ><label v-if="nurtureStrategy==='keyword'" class="wide"
+                  >识别关键词（逗号或换行分隔）<textarea
+                    v-model.trim="ocrKeywords"
+                    rows="3"
+                    maxlength="620"
+                    placeholder="例如：露营，户外装备"
+                  ></textarea></label
                 ><label
                   v-for="([key, rule]) in visiblePresetParameters"
                   :key="key"
@@ -336,7 +348,7 @@
                     :max="rule.max" /></label
                 ><button
                   @click="runServerPreset"
-                  :disabled="!connected||!!activeRun||!selectedServerPreset"
+                  :disabled="!connected||!!activeRun||!selectedServerPreset||(nurtureStrategy==='keyword'&&!ocrKeywords)"
                 >
                   ▶ 开始测试
                 </button>

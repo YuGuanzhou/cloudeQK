@@ -17,11 +17,17 @@ import android.util.Base64
 import android.view.WindowManager
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 
 class ScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
     private var lastFrame = 0L
+    private var lastOcr = 0L
+    private var recognizing = false
+    private val recognizer by lazy { TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build()) }
 
     override fun onCreate() { super.onCreate(); createChannel(); startForeground(7, notification()) }
     override fun onBind(intent: Intent?): IBinder? = null
@@ -59,6 +65,14 @@ class ScreenCaptureService : Service() {
             val padded = Bitmap.createBitmap(rowPixels, height, Bitmap.Config.ARGB_8888)
             padded.copyPixelsFromBuffer(plane.buffer)
             val bitmap = Bitmap.createBitmap(padded, 0, 0, width, height); padded.recycle()
+            if (SocketManager.ocrEnabled && !recognizing && lastFrame - lastOcr >= 800) {
+                recognizing = true; lastOcr = lastFrame
+                val ocrBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
+                    .addOnSuccessListener { text -> SocketManager.emit("screen:ocr", JSONObject().put("deviceId", SocketManager.deviceId).put("text", text.text).put("timestamp", System.currentTimeMillis())) }
+                    .addOnFailureListener { error -> SocketManager.emit("screen:ocr", JSONObject().put("deviceId", SocketManager.deviceId).put("error", error.message ?: "OCR 识别失败").put("timestamp", System.currentTimeMillis())) }
+                    .addOnCompleteListener { ocrBitmap.recycle(); recognizing = false }
+            }
             val output = ByteArrayOutputStream(); bitmap.compress(Bitmap.CompressFormat.JPEG, 60, output); bitmap.recycle()
             SocketManager.emit("screen:frame", JSONObject().put("deviceId", SocketManager.deviceId).put("mime", "image/jpeg").put("data", Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)).put("sourceWidth", sourceWidth).put("sourceHeight", sourceHeight).put("timestamp", lastFrame))
         } finally { image.close() }
@@ -69,5 +83,5 @@ class ScreenCaptureService : Service() {
         val stop = PendingIntent.getService(this, 0, Intent(this, ScreenCaptureService::class.java).setAction("STOP"), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, "capture").setSmallIcon(android.R.drawable.ic_menu_view).setContentTitle("正在共享屏幕").setContentText("点按停止可立即结束共享").addAction(android.R.drawable.ic_delete, "停止", stop).build()
     }
-    override fun onDestroy() { reader?.close(); projection?.stop(); super.onDestroy() }
+    override fun onDestroy() { reader?.close(); projection?.stop(); recognizer.close(); super.onDestroy() }
 }

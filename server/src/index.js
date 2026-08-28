@@ -9,6 +9,7 @@ import { publicDevice, validCommand } from "./protocol.js";
 import {
   automationPresets,
   buildAutomationPreset,
+  buildKeywordPreset,
   parseAutomation,
   runAutomation,
 } from "./automation.js";
@@ -443,6 +444,8 @@ const io = new Server(server, {
 });
 const devices = new Map();
 const automations = new Map();
+const ocrResults = new Map();
+const ocrUsers = new Map();
 fs.mkdirSync(dataDir, {
   recursive: true,
 });
@@ -470,14 +473,32 @@ function setStreaming(deviceId, enabled) {
   if (device?.online)
     io.to(device.socketId).emit("screen:control", {
       enabled,
+      ocr: (ocrUsers.get(deviceId) || 0) > 0,
     });
 }
 
 async function refreshStreaming(deviceId) {
   setStreaming(
     deviceId,
-    (await io.in(`screen:${deviceId}`).fetchSockets()).length > 0,
+    (ocrUsers.get(deviceId) || 0) > 0 ||
+      (await io.in(`screen:${deviceId}`).fetchSockets()).length > 0,
   );
+}
+
+function useOcr(deviceId, enabled) {
+  const count = Math.max(0, (ocrUsers.get(deviceId) || 0) + (enabled ? 1 : -1));
+  count ? ocrUsers.set(deviceId, count) : ocrUsers.delete(deviceId);
+  refreshStreaming(deviceId);
+}
+
+async function nextOcr(deviceId, after, signal) {
+  while (!signal.aborted && Date.now() - after < 10_000) {
+    const result = ocrResults.get(deviceId);
+    if (result?.timestamp > after) return result.text;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (signal.aborted) throw new Error("脚本已取消");
+  throw new Error("OCR 识别超时，请确认手机已开启屏幕共享");
 }
 
 io.use(async (socket, next) => {
@@ -638,7 +659,7 @@ io.on("connection", (socket) => {
     socket.on(
       "automation:run",
       (
-        { runId, deviceIds, source, presetId, parameters } = {},
+        { runId, deviceIds, source, presetId, parameters, strategy } = {},
         ack = () => {},
       ) => {
         try {
@@ -649,7 +670,8 @@ io.on("connection", (socket) => {
             deviceIds.length > 500
           )
             throw new Error("运行参数无效");
-          const steps = presetId
+          const keywordConfig = strategy === "keyword" ? buildKeywordPreset(presetId, parameters) : null;
+          const steps = keywordConfig ? [] : presetId
             ? buildAutomationPreset(presetId, parameters)
             : parseAutomation(source);
           const permitted = [...devices.values()]
@@ -664,10 +686,32 @@ io.on("connection", (socket) => {
           automations.set(automationKey, controller);
           ack({
             ok: true,
-            steps: steps.length,
+            steps: keywordConfig ? keywordConfig.count : steps.length,
             targets: targets.length,
           });
-          runAutomation(
+          const execution = keywordConfig
+            ? Promise.all(targets.map(async (id) => {
+                useOcr(id, true);
+                try {
+                  const send = (command, step) => {
+                    const device = devices.get(id);
+                    if (device?.online) io.to(device.socketId).emit("command:execute", { requestId: `${runId}:${id}:${step}`, command });
+                  };
+                  send({ type: "openApp", packageName: keywordConfig.packageName }, "open");
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                  for (let index = 0; keywordConfig.count === -1 || index < keywordConfig.count; index++) {
+                    if (controller.signal.aborted) throw new Error("脚本已取消");
+                    const started = Date.now();
+                    await new Promise((resolve) => setTimeout(resolve, keywordConfig.staySeconds * 1000));
+                    const text = (await nextOcr(id, started, controller.signal)).replace(/\s+/g, "").toLowerCase();
+                    const matched = keywordConfig.keywords.some((word) => text.includes(word.replace(/\s+/g, "").toLowerCase()));
+                    if (matched) send({ type: "tapRelative", ...keywordConfig.likePoint }, `like:${index}`);
+                    send({ type: "swipeRelative", x1: keywordConfig.swipeStart.x, y1: keywordConfig.swipeStart.y, x2: keywordConfig.swipeEnd.x, y2: keywordConfig.swipeEnd.y, duration: keywordConfig.swipeDuration }, `swipe:${index}`);
+                    io.to(socket.id).emit("automation:progress", { runId, step: index + 1, total: keywordConfig.count, deviceId: id, matched });
+                  }
+                } finally { useOcr(id, false); }
+              }))
+            : runAutomation(
             steps,
             async (command, step) => {
               for (const id of targets) {
@@ -685,7 +729,8 @@ io.on("connection", (socket) => {
               });
             },
             controller.signal,
-          )
+          );
+          execution
             .then(() =>
               io.to(socket.id).emit("automation:done", {
                 runId,
@@ -803,6 +848,10 @@ io.on("connection", (socket) => {
       frame.data.length < 1_800_000
     )
       io.to(`screen:${deviceId}`).emit("screen:frame", frame);
+  });
+  socket.on("screen:ocr", (result = {}) => {
+    if (result.deviceId === deviceId && typeof result.text === "string" && result.text.length < 20_000)
+      ocrResults.set(deviceId, { text: result.text, timestamp: Number(result.timestamp) || Date.now() });
   });
   socket.on("disconnect", () => {
     const device = devices.get(deviceId);

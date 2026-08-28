@@ -110,4 +110,4 @@ $env:ADMIN_PASSWORD='请设置强管理员密码'
 docker compose up -d --build
 ```
 
-默认网页端口为 `6001`，MySQL 端口为 `3306`；可分别通过 `APP_PORT` 和 `MYSQL_PORT` 修改。MySQL 数据保存在 `mysql_data` 命名卷中。
+默认网页端口为 `6001`，可通过 `APP_PORT` 修改。MySQL 仅供 Compose 内部网络访问；数据库和服务端分组数据分别保存在 `mysql_data`、`server_data` 命名卷中。

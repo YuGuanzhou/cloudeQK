@@ -18,6 +18,7 @@ object SocketManager {
     private var socket: Socket? = null
     private var heartbeat: Timer? = null
     @Volatile var streamingEnabled = false; private set
+    @Volatile var ocrEnabled = false; private set
 
     @Synchronized fun connect(context: Context, serverUrl: String, token: String, status: (Boolean, String) -> Unit = { _, _ -> }) {
         disconnect()
@@ -35,7 +36,7 @@ object SocketManager {
             heartbeat?.cancel(); heartbeat = fixedRateTimer("heartbeat", daemon = true, initialDelay = 0, period = 10_000) { emit("device:heartbeat", JSONObject().put("deviceId", deviceId).put("timestamp", System.currentTimeMillis())) }
             status(true, "服务器已连接")
         }
-        next.on(Socket.EVENT_DISCONNECT) { heartbeat?.cancel(); streamingEnabled = false; status(false, "连接已断开，正在重试") }
+        next.on(Socket.EVENT_DISCONNECT) { heartbeat?.cancel(); streamingEnabled = false; ocrEnabled = false; status(false, "连接已断开，正在重试") }
         next.on(Socket.EVENT_CONNECT_ERROR) { args ->
             val error = args.firstOrNull()
             val detail = when (error) {
@@ -45,7 +46,11 @@ object SocketManager {
             }
             status(false, if (detail.contains("unauthorized", true)) "设备 Token 不正确" else "无法连接 $serverUrl（$detail）")
         }
-        next.on("screen:control") { args -> streamingEnabled = (args.firstOrNull() as? JSONObject)?.optBoolean("enabled") == true }
+        next.on("screen:control") { args ->
+            val control = args.firstOrNull() as? JSONObject
+            streamingEnabled = control?.optBoolean("enabled") == true
+            ocrEnabled = control?.optBoolean("ocr") == true
+        }
         next.on("command:execute") { args ->
             val payload = args.firstOrNull() as? JSONObject ?: return@on
             val result = RemoteAccessibilityService.execute(context, payload.optJSONObject("command"))
@@ -56,7 +61,7 @@ object SocketManager {
     }
 
     @Synchronized fun disconnect() {
-        heartbeat?.cancel(); heartbeat = null; streamingEnabled = false
+        heartbeat?.cancel(); heartbeat = null; streamingEnabled = false; ocrEnabled = false
         socket?.off(); socket?.disconnect(); socket?.close(); socket = null
     }
 

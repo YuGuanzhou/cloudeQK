@@ -84,6 +84,8 @@ createApp({
     const serverPresets = ref([]),
       selectedServerPreset = ref(""),
       presetParameters = ref({}),
+      nurtureStrategy = ref("random"),
+      ocrKeywords = ref(""),
       interactionMode = ref("standard");
     const interactionModes = [
       ["browse", "仅浏览"],
@@ -98,8 +100,9 @@ createApp({
           (item) => item.id === selectedServerPreset.value,
         )?.parameters || {},
       ).filter(
-        ([key]) =>
-          interactionMode.value === "custom" || quickParameterKeys.has(key),
+        ([key]) => nurtureStrategy.value === "keyword"
+          ? ["count", "staySeconds"].includes(key)
+          : interactionMode.value === "custom" || quickParameterKeys.has(key),
       ),
     );
     const automationMode = ref("visual"),
@@ -261,7 +264,8 @@ createApp({
       log(`${r.ok ? "✓" : "✗"} ${r.deviceId}: ${r.message}`);
     });
     socket.on("automation:progress", (r) => {
-      if (r.runId === activeRun.value) log(`自动化进度 ${r.step}/${r.total}`);
+      if (r.runId === activeRun.value)
+        log(`${r.matched === undefined ? "自动化进度" : r.matched ? "OCR 命中并点赞" : "OCR 未命中，已跳过"} ${r.step}/${r.total === -1 ? "持续" : r.total}`);
     });
     socket.on("automation:done", (r) => {
       if (r.runId === activeRun.value) {
@@ -921,7 +925,8 @@ createApp({
           runId,
           deviceIds: recipients(),
           presetId: selectedServerPreset.value,
-          parameters: presetParameters.value,
+          strategy: nurtureStrategy.value,
+          parameters: { ...presetParameters.value, keywords: ocrKeywords.value },
         },
         (error, result) => {
           if (error) return log("启动自动化超时");
@@ -991,6 +996,8 @@ createApp({
       presetParameters,
       interactionMode,
       interactionModes,
+      nurtureStrategy,
+      ocrKeywords,
       visiblePresetParameters,
       activeRun,
       currentUser,

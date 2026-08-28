@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { validCommand } from "../src/protocol.js";
 import {
   buildAutomationPreset,
+  buildKeywordPreset,
   parseAutomation,
   runAutomation,
 } from "../src/automation.js";
@@ -202,4 +203,11 @@ test("runs an infinite preset until cancelled", async () => {
     runAutomation(steps, async () => {}, controller.signal),
     /脚本已取消/,
   );
+});
+
+test("validates keyword OCR presets", () => {
+  const preset = buildKeywordPreset("douyin-test", { keywords: "露营，户外", count: 10 });
+  assert.deepEqual(preset.keywords, ["露营", "户外"]);
+  assert.equal(preset.likePoint.x, 0.9);
+  assert.throws(() => buildKeywordPreset("douyin-test", { keywords: "" }), /关键词/);
 });

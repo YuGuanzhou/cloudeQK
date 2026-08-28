@@ -23,6 +23,27 @@ const PRESET_PACKAGES = {
   "xiaohongshu-test": "com.xingin.xhs",
 };
 
+export function buildKeywordPreset(id, values = {}) {
+  const preset = automationPresets.find((item) => item.id === id);
+  if (!preset) throw new Error("自动化预设不存在");
+  const keywords = String(values.keywords || "").split(/[,，\r\n]+/).map((item) => item.trim()).filter(Boolean);
+  if (!keywords.length || keywords.length > 20 || keywords.some((item) => item.length > 30))
+    throw new Error("请输入 1-20 个关键词，每个最多 30 字");
+  const count = Number(values.count ?? 10), staySeconds = Number(values.staySeconds ?? 6);
+  if (!Number.isInteger(count) || count < -1 || count === 0 || count > 1000)
+    throw new Error("识别内容数应为 -1 或 1-1000 的整数");
+  if (!Number.isInteger(staySeconds) || staySeconds < 2 || staySeconds > 60)
+    throw new Error("每条停留应为 2-60 秒的整数");
+  const params = preset.parameters;
+  return {
+    packageName: PRESET_PACKAGES[id], keywords, count, staySeconds,
+    likePoint: point(values.likePoint ?? params.likePoint.default, params.likePoint.label),
+    swipeStart: point(values.swipeStart ?? params.swipeStart.default, params.swipeStart.label),
+    swipeEnd: point(values.swipeEnd ?? params.swipeEnd.default, params.swipeEnd.label),
+    swipeDuration: Number(values.swipeDuration ?? params.swipeDuration.default),
+  };
+}
+
 function testParameters(app) {
   const points =
     app === "douyin"

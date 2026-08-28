@@ -12,4 +12,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("io.socket:socket.io-client:2.1.2") { exclude(group = "org.json", module = "json") }
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 }

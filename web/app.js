@@ -1,4 +1,8 @@
 const { createApp, computed, ref } = Vue;
+let idSequence = 0;
+const newId = () =>
+  window.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${idSequence++}`;
+
 createApp({
   setup() {
     const theme = ref(
@@ -109,23 +113,23 @@ createApp({
       newBlockType = ref("openApp"),
       blocks = ref([
         {
-          id: crypto.randomUUID(),
+          id: newId(),
           type: "openApp",
           packageName: "com.android.settings",
         },
         {
-          id: crypto.randomUUID(),
+          id: newId(),
           type: "wait",
           duration: 1000,
         },
         {
-          id: crypto.randomUUID(),
+          id: newId(),
           type: "tap",
           x: 100,
           y: 200,
         },
         {
-          id: crypto.randomUUID(),
+          id: newId(),
           type: "action",
           action: "BACK",
         },
@@ -189,7 +193,7 @@ createApp({
     let errorToastTimer;
     const log = (text) => {
       logs.value.unshift({
-        id: crypto.randomUUID(),
+        id: newId(),
         text,
         time: Date.now(),
       });
@@ -197,7 +201,7 @@ createApp({
       if (text.startsWith("✗")) {
         const phone = document.querySelector(".phone-shell")?.getBoundingClientRect();
         errorToast.value = {
-          id: crypto.randomUUID(),
+          id: newId(),
           text: text.replace(/^✗\s*/, ""),
           left: phone ? phone.left + phone.width / 2 : innerWidth / 2,
         };
@@ -632,7 +636,7 @@ createApp({
         },
       };
       return {
-        id: crypto.randomUUID(),
+        id: newId(),
         type,
         ...defaults[type],
       };
@@ -724,7 +728,7 @@ createApp({
             };
           else throw new Error(`无法识别：${line}`);
           parsed.push({
-            id: crypto.randomUUID(),
+            id: newId(),
             ...block,
           });
         }
@@ -739,7 +743,7 @@ createApp({
 
     function emitCommand(command) {
       if (!recipients().length) return log("✗ 当前操作范围没有设备");
-      const requestId = crypto.randomUUID();
+      const requestId = newId();
       pendingCommands.set(
         requestId,
         setTimeout(() => {
@@ -843,7 +847,7 @@ createApp({
     function runScript() {
       if (!recipients().length) return log("当前操作范围没有设备");
       if (automationMode.value === "visual") syncScript();
-      const runId = crypto.randomUUID();
+      const runId = newId();
       socket.timeout(5000).emit(
         "automation:run",
         {
@@ -918,7 +922,7 @@ createApp({
 
     function runServerPreset() {
       if (!recipients().length) return log("当前操作范围没有设备");
-      const runId = crypto.randomUUID();
+      const runId = newId();
       socket.timeout(5000).emit(
         "automation:run",
         {

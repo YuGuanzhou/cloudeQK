@@ -102,11 +102,11 @@ HOME
 
 ## Docker Compose
 
-项目根目录包含 Node.js 服务与 MySQL 8.4 的 Compose 配置。部署前建议通过环境变量修改数据库和管理员密码：
+项目根目录包含 Node.js 服务与 MySQL 8.4 的 Compose 配置。部署前复制环境变量模板并设置三个不同的强密码：
 
 ```powershell
-$env:DB_PASSWORD='请设置强数据库密码'
-$env:ADMIN_PASSWORD='请设置强管理员密码'
+Copy-Item .env.example .env
+# 编辑 .env 中的 MYSQL_ROOT_PASSWORD、DB_PASSWORD 和 ADMIN_PASSWORD
 docker compose up -d --build
 ```
 

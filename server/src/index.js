@@ -41,6 +41,7 @@ const dataDir = path.resolve(
 );
 const groupsFile = path.join(dataDir, "groups.json");
 const app = express();
+app.set("trust proxy", 1);
 app.use(
   express.json({
     limit: "64kb",
@@ -57,7 +58,7 @@ app.post("/api/login", async (req, res) => {
     return res.status(401).json({
       error: "用户名或密码错误，或账户已被封禁",
     });
-  await createSession(res, user.id);
+  await createSession(req, res, user.id);
   await pool.query(
     "UPDATE users SET last_login_at=NOW(),last_login_ip=? WHERE id=?",
     [req.ip, user.id],

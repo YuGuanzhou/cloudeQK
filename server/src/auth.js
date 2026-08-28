@@ -16,10 +16,14 @@ export async function currentUser(req) {
   return rows[0] || null;
 }
 
-export async function createSession(res, userId) {
+export function sessionCookie(token, secure) {
+  return `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${secure ? "; Secure" : ""}`;
+}
+
+export async function createSession(req, res, userId) {
   const token = crypto.randomBytes(32).toString("base64url");
   await pool.query("INSERT INTO sessions (token_hash,user_id,expires_at) VALUES (?,?,DATE_ADD(NOW(), INTERVAL 7 DAY))", [digest(token), userId]);
-  res.setHeader("Set-Cookie", `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+  res.setHeader("Set-Cookie", sessionCookie(token, req.secure));
 }
 
 export async function destroySession(req, res) {

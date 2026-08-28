@@ -5,6 +5,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?请设置 DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME:-cloudeqk}
+      MYSQL_USER: ${DB_USER:-cloudeqk}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?请设置 DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -21,7 +23,7 @@ services:
       PORT: 6001
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_USER: root
+      DB_USER: ${DB_USER:-cloudeqk}
       DB_PASSWORD: ${DB_PASSWORD:?请设置 DB_PASSWORD}
       DB_NAME: ${DB_NAME:-cloudeqk}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}

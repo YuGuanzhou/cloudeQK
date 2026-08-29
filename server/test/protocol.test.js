@@ -4,6 +4,7 @@ import { validCommand } from "../src/protocol.js";
 import {
   buildAutomationPreset,
   buildKeywordPreset,
+  matchesKeywords,
   parseAutomation,
   runAutomation,
 } from "../src/automation.js";
@@ -32,6 +33,14 @@ test("only accepts supported, bounded commands", () => {
       y: 2,
     }),
     false,
+  );
+  assert.equal(
+    validCommand({
+      type: "doubleTapRelative",
+      x: 0.5,
+      y: 0.5,
+    }),
+    true,
   );
   assert.equal(
     validCommand({
@@ -143,10 +152,19 @@ test("builds bounded server presets", () => {
     commentEvery: 1,
     comments: "甲\n乙",
   });
-  assert.equal(steps[0].command.packageName, "com.ss.android.ugc.test");
+  assert.equal(steps[0].command.packageName, "com.ss.android.ugc.aweme");
   assert.equal(
     steps.find((step) => step.command?.type === "swipeRelative").command.y2,
-    0.41,
+    0.32,
+  );
+  assert.equal(
+    steps.some(
+      (step) =>
+        step.command?.type === "doubleTapRelative" &&
+        step.command.x === 0.5 &&
+        step.command.y === 0.5,
+    ),
+    true,
   );
   assert.equal(
     steps.some((step) => step.command?.type === "inputText"),
@@ -161,12 +179,6 @@ test("builds bounded server presets", () => {
     ).size,
     steps.filter((step) => step.command?.type === "inputText").length,
   );
-  assert.equal(
-    steps.some(
-      (step) => step.command?.packageName === "com.ss.android.ugc.aweme",
-    ),
-    false,
-  );
   assert.throws(
     () =>
       buildAutomationPreset("xiaohongshu-test", {
@@ -177,13 +189,6 @@ test("builds bounded server presets", () => {
   assert.throws(
     () => buildAutomationPreset("xiaohongshu-test", { count: 0 }),
     /-1 或 1-1000/,
-  );
-  assert.throws(
-    () =>
-      buildAutomationPreset("douyin-test", {
-        likePoint: "2,0",
-      }),
-    /点赞坐标/,
   );
   assert.throws(() => buildAutomationPreset("unknown"), /不存在/);
 });
@@ -208,6 +213,11 @@ test("runs an infinite preset until cancelled", async () => {
 test("validates keyword OCR presets", () => {
   const preset = buildKeywordPreset("douyin-test", { keywords: "露营，户外", count: 10 });
   assert.deepEqual(preset.keywords, ["露营", "户外"]);
-  assert.equal(preset.likePoint.x, 0.9);
+  assert.equal("likePoint" in preset, false);
+  assert.deepEqual(preset.swipeStart, { x: 0.5, y: 0.68 });
+  assert.deepEqual(preset.swipeEnd, { x: 0.5, y: 0.32 });
+  assert.throws(() => buildKeywordPreset("douyin-test", { keywords: "露营", swipeDuration: 50 }), /滑动时长/);
   assert.throws(() => buildKeywordPreset("douyin-test", { keywords: "" }), /关键词/);
+  assert.equal(matchesKeywords("正在\n露 营", preset.keywords), true);
+  assert.equal(matchesKeywords("城市夜景", preset.keywords), false);
 });

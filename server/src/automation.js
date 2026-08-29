@@ -35,26 +35,33 @@ export function buildKeywordPreset(id, values = {}) {
   if (!Number.isInteger(staySeconds) || staySeconds < 2 || staySeconds > 60)
     throw new Error("每条停留应为 2-60 秒的整数");
   const params = preset.parameters;
+  const swipeDuration = Number(values.swipeDuration ?? params.swipeDuration.default);
+  if (!Number.isInteger(swipeDuration) || swipeDuration < 200 || swipeDuration > 1500)
+    throw new Error("滑动时长应为 200-1500 毫秒的整数");
   return {
     packageName: PRESET_PACKAGES[id], keywords, count, staySeconds,
-    likePoint: point(values.likePoint ?? params.likePoint.default, params.likePoint.label),
     swipeStart: point(values.swipeStart ?? params.swipeStart.default, params.swipeStart.label),
     swipeEnd: point(values.swipeEnd ?? params.swipeEnd.default, params.swipeEnd.label),
-    swipeDuration: Number(values.swipeDuration ?? params.swipeDuration.default),
+    swipeDuration,
   };
+}
+
+export function matchesKeywords(text, keywords) {
+  const normalized = String(text).replace(/\s+/g, "").toLowerCase();
+  return keywords.some((word) =>
+    normalized.includes(word.replace(/\s+/g, "").toLowerCase()),
+  );
 }
 
 function testParameters(app) {
   const points =
     app === "douyin"
       ? {
-          like: "0.90,0.55",
           follow: "0.90,0.38",
           comment: "0.50,0.93",
           send: "0.92,0.93",
         }
       : {
-          like: "0.88,0.88",
           follow: "0.50,0.12",
           comment: "0.45,0.95",
           send: "0.92,0.95",
@@ -89,7 +96,7 @@ function testParameters(app) {
       label: "滑动时长（毫秒）",
       min: 200,
       max: 1500,
-      default: 450,
+      default: 350,
     },
     likeEvery: {
       label: "每几条点赞（0关闭）",
@@ -127,11 +134,6 @@ function testParameters(app) {
       max: 20,
       default: 2,
     },
-    likePoint: {
-      type: "text",
-      label: "点赞坐标 X,Y",
-      default: points.like,
-    },
     followPoint: {
       type: "text",
       label: "关注坐标 X,Y",
@@ -150,12 +152,12 @@ function testParameters(app) {
     swipeStart: {
       type: "text",
       label: "滑动起点 X,Y",
-      default: "0.50,0.59",
+      default: "0.50,0.68",
     },
     swipeEnd: {
       type: "text",
       label: "滑动终点 X,Y",
-      default: "0.50,0.41",
+      default: "0.50,0.32",
     },
     returnHome: {
       type: "boolean",
@@ -209,7 +211,6 @@ export function buildAutomationPreset(id, values = {}) {
   );
   const points = Object.fromEntries(
     [
-      "likePoint",
       "followPoint",
       "commentPoint",
       "sendPoint",
@@ -274,8 +275,9 @@ export function buildAutomationPreset(id, values = {}) {
       steps.push(
         {
           command: {
-            type: "tapRelative",
-            ...points.likePoint,
+            type: "doubleTapRelative",
+            x: 0.5,
+            y: 0.5,
           },
         },
         {

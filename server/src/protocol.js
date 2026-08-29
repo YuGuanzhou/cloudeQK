@@ -2,6 +2,7 @@ const TYPES = new Set([
   "openApp",
   "tap",
   "tapRelative",
+  "doubleTapRelative",
   "swipe",
   "swipeRelative",
   "inputText",
@@ -21,7 +22,7 @@ export function validCommand(command) {
       command.x <= 100_000 &&
       command.y <= 100_000
     );
-  if (command.type === "tapRelative")
+  if (["tapRelative", "doubleTapRelative"].includes(command.type))
     return (
       Number.isFinite(command.x) &&
       Number.isFinite(command.y) &&

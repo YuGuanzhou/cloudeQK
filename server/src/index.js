@@ -10,6 +10,7 @@ import {
   automationPresets,
   buildAutomationPreset,
   buildKeywordPreset,
+  matchesKeywords,
   parseAutomation,
   runAutomation,
 } from "./automation.js";
@@ -492,14 +493,23 @@ function useOcr(deviceId, enabled) {
   refreshStreaming(deviceId);
 }
 
-async function nextOcr(deviceId, after, signal) {
-  while (!signal.aborted && Date.now() - after < 10_000) {
+async function observeKeywords(deviceId, keywords, duration, signal) {
+  const started = Date.now();
+  let after = started + 600;
+  let seen = false;
+  let matched = false;
+  while (!signal.aborted && Date.now() - started < duration) {
     const result = ocrResults.get(deviceId);
-    if (result?.timestamp > after) return result.text;
+    if (result?.timestamp > after) {
+      after = result.timestamp;
+      seen = true;
+      matched ||= matchesKeywords(result.text, keywords);
+    }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   if (signal.aborted) throw new Error("脚本已取消");
-  throw new Error("OCR 识别超时，请确认手机已开启屏幕共享");
+  if (!seen) throw new Error("OCR 识别超时，请确认手机已开启屏幕共享");
+  return matched;
 }
 
 io.use(async (socket, next) => {
@@ -702,11 +712,11 @@ io.on("connection", (socket) => {
                   await new Promise((resolve) => setTimeout(resolve, 3000));
                   for (let index = 0; keywordConfig.count === -1 || index < keywordConfig.count; index++) {
                     if (controller.signal.aborted) throw new Error("脚本已取消");
-                    const started = Date.now();
-                    await new Promise((resolve) => setTimeout(resolve, keywordConfig.staySeconds * 1000));
-                    const text = (await nextOcr(id, started, controller.signal)).replace(/\s+/g, "").toLowerCase();
-                    const matched = keywordConfig.keywords.some((word) => text.includes(word.replace(/\s+/g, "").toLowerCase()));
-                    if (matched) send({ type: "tapRelative", ...keywordConfig.likePoint }, `like:${index}`);
+                    const matched = await observeKeywords(id, keywordConfig.keywords, keywordConfig.staySeconds * 1000, controller.signal);
+                    if (matched) {
+                      send({ type: "doubleTapRelative", x: 0.5, y: 0.5 }, `like:${index}`);
+                      await new Promise((resolve) => setTimeout(resolve, 350));
+                    }
                     send({ type: "swipeRelative", x1: keywordConfig.swipeStart.x, y1: keywordConfig.swipeStart.y, x2: keywordConfig.swipeEnd.x, y2: keywordConfig.swipeEnd.y, duration: keywordConfig.swipeDuration }, `swipe:${index}`);
                     io.to(socket.id).emit("automation:progress", { runId, step: index + 1, total: keywordConfig.count, deviceId: id, matched });
                   }
@@ -852,7 +862,7 @@ io.on("connection", (socket) => {
   });
   socket.on("screen:ocr", (result = {}) => {
     if (result.deviceId === deviceId && typeof result.text === "string" && result.text.length < 20_000)
-      ocrResults.set(deviceId, { text: result.text, timestamp: Number(result.timestamp) || Date.now() });
+      ocrResults.set(deviceId, { text: result.text, timestamp: Date.now() });
   });
   socket.on("disconnect", () => {
     const device = devices.get(deviceId);

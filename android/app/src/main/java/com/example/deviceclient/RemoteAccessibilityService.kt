@@ -24,6 +24,15 @@ class RemoteAccessibilityService : AccessibilityService() {
         return dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 80)).build(), null, null)
     }
 
+    private fun doubleTap(x: Float, y: Float): Boolean {
+        val path = Path().apply { moveTo(x, y) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 60))
+            .addStroke(GestureDescription.StrokeDescription(path, 140, 60))
+            .build()
+        return dispatchGesture(gesture, null, null)
+    }
+
     private fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long): Boolean {
         val path = Path().apply { moveTo(x1, y1); lineTo(x2, y2) }
         return dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, duration)).build(), null, null)
@@ -31,7 +40,7 @@ class RemoteAccessibilityService : AccessibilityService() {
 
     private fun screenSize(): Pair<Int, Int> {
         val windowManager = getSystemService(WindowManager::class.java)
-        return if (Build.VERSION.SDK_INT >= 30) windowManager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
+        return if (Build.VERSION.SDK_INT >= 30) windowManager.currentWindowMetrics.bounds.let { it.width() to it.height() }
         else @Suppress("DEPRECATION") DisplayMetrics().also { windowManager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
     }
 
@@ -54,6 +63,10 @@ class RemoteAccessibilityService : AccessibilityService() {
                 "tapRelative" -> instance?.let { service ->
                     val (width, height) = service.screenSize()
                     service.tap((command.optDouble("x") * width).toFloat(), (command.optDouble("y") * height).toFloat()).let { it to if (it) "相对点击已提交" else "点击提交失败" }
+                } ?: (false to "无障碍服务未开启")
+                "doubleTapRelative" -> instance?.let { service ->
+                    val (width, height) = service.screenSize()
+                    service.doubleTap((command.optDouble("x") * width).toFloat(), (command.optDouble("y") * height).toFloat()).let { it to if (it) "双击已提交" else "双击提交失败" }
                 } ?: (false to "无障碍服务未开启")
                 "swipe" -> instance?.swipe(command.optDouble("x1").toFloat(), command.optDouble("y1").toFloat(), command.optDouble("x2").toFloat(), command.optDouble("y2").toFloat(), command.optLong("duration"))?.let { it to if (it) "滑动已提交" else "滑动提交失败" } ?: (false to "无障碍服务未开启")
                 "swipeRelative" -> instance?.let { service ->

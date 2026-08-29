@@ -385,7 +385,7 @@ export function parseAutomation(source) {
     else if (op === "TAP" && rest.length === 2)
       step = {
         command: {
-          type: "tap",
+          type: "tapRelative",
           x: Number(rest[0]),
           y: Number(rest[1]),
         },
@@ -393,7 +393,7 @@ export function parseAutomation(source) {
     else if (op === "SWIPE" && (rest.length === 4 || rest.length === 5))
       step = {
         command: {
-          type: "swipe",
+          type: "swipeRelative",
           x1: Number(rest[0]),
           y1: Number(rest[1]),
           x2: Number(rest[2]),

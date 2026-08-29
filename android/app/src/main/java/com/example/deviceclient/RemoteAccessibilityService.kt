@@ -59,7 +59,6 @@ class RemoteAccessibilityService : AccessibilityService() {
                     val launch = launcherContext.packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                     if (launch == null) false to "App 未安装或不可启动" else { launcherContext.startActivity(launch); true to "已打开 $packageName" }
                 }
-                "tap" -> instance?.tap(command.optDouble("x").toFloat(), command.optDouble("y").toFloat())?.let { it to if (it) "点击已提交" else "点击提交失败" } ?: (false to "无障碍服务未开启")
                 "tapRelative" -> instance?.let { service ->
                     val (width, height) = service.screenSize()
                     service.tap((command.optDouble("x") * width).toFloat(), (command.optDouble("y") * height).toFloat()).let { it to if (it) "相对点击已提交" else "点击提交失败" }
@@ -68,7 +67,6 @@ class RemoteAccessibilityService : AccessibilityService() {
                     val (width, height) = service.screenSize()
                     service.doubleTap((command.optDouble("x") * width).toFloat(), (command.optDouble("y") * height).toFloat()).let { it to if (it) "双击已提交" else "双击提交失败" }
                 } ?: (false to "无障碍服务未开启")
-                "swipe" -> instance?.swipe(command.optDouble("x1").toFloat(), command.optDouble("y1").toFloat(), command.optDouble("x2").toFloat(), command.optDouble("y2").toFloat(), command.optLong("duration"))?.let { it to if (it) "滑动已提交" else "滑动提交失败" } ?: (false to "无障碍服务未开启")
                 "swipeRelative" -> instance?.let { service ->
                     val (width, height) = service.screenSize()
                     service.swipe((command.optDouble("x1") * width).toFloat(), (command.optDouble("y1") * height).toFloat(), (command.optDouble("x2") * width).toFloat(), (command.optDouble("y2") * height).toFloat(), command.optLong("duration")).let { it to if (it) "相对滑动已提交" else "滑动提交失败" }

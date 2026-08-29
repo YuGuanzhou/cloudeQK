@@ -70,15 +70,15 @@ createApp({
     const form = ref({
         type: "openApp",
         packageName: "",
-        x: 100,
-        y: 100,
+        x: 0.5,
+        y: 0.5,
         text: "Hello",
         action: "BACK",
       }),
       appQuery = ref(""),
       appPickerOpen = ref(false);
     const script = ref(
-        "# 每行一条指令\nOPEN com.android.settings\nWAIT 1000\nTAP 100 200\nBACK",
+        "# 坐标使用 0-1 屏幕比例\nOPEN com.android.settings\nWAIT 1000\nTAP 0.5 0.5\nBACK",
       ),
       presetName = ref(""),
       presets = ref(
@@ -125,8 +125,8 @@ createApp({
         {
           id: newId(),
           type: "tap",
-          x: 100,
-          y: 200,
+          x: 0.5,
+          y: 0.5,
         },
         {
           id: newId(),
@@ -592,6 +592,7 @@ createApp({
       if (command.type === "openApp")
         command.packageName = form.value.packageName;
       if (command.type === "tap") {
+        command.type = "tapRelative";
         command.x = form.value.x;
         command.y = form.value.y;
       }
@@ -618,14 +619,14 @@ createApp({
           duration: 1000,
         },
         tap: {
-          x: 100,
-          y: 100,
+          x: 0.5,
+          y: 0.5,
         },
         swipe: {
-          x1: 100,
-          y1: 600,
-          x2: 100,
-          y2: 200,
+          x1: 0.5,
+          y1: 0.68,
+          x2: 0.5,
+          y2: 0.32,
           duration: 300,
         },
         text: {

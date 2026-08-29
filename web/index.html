@@ -229,7 +229,7 @@
               <label
                 >指令<select v-model="form.type">
                   <option value="openApp">打开 App</option>
-                  <option value="tap">点击坐标</option>
+                  <option value="tap">点击相对位置</option>
                   <option value="inputText">输入文本</option>
                 </select></label
               >
@@ -260,15 +260,19 @@
               </div>
               <template v-if="form.type==='tap'"
                 ><label
-                  >X<input
+                  >X 比例<input
                     v-model.number="form.x"
                     type="number"
-                    min="0" /></label
+                    min="0"
+                    max="1"
+                    step="0.01" /></label
                 ><label
-                  >Y<input
+                  >Y 比例<input
                     v-model.number="form.y"
                     type="number"
-                    min="0" /></label></template
+                    min="0"
+                    max="1"
+                    step="0.01" /></label></template
               ><label v-if="form.type==='inputText'"
                 >文本<input v-model="form.text" maxlength="2000" /></label
               ><button
@@ -391,7 +395,7 @@
                   <div class="flow-order">{{index+1}}</div>
                   <div class="flow-fields">
                     <b
-                      >{{({openApp:'打开应用',wait:'等待',tap:'点击坐标',swipe:'滑动',text:'输入文本',action:'系统动作'})[b.type]}}</b
+                      >{{({openApp:'打开应用',wait:'等待',tap:'相对点击',swipe:'相对滑动',text:'输入文本',action:'系统动作'})[b.type]}}</b
                     ><label v-if="b.type==='openApp'"
                       >应用包名<input
                         v-model.trim="b.packageName"
@@ -406,42 +410,54 @@
                         max="60000" /></label
                     ><template v-if="b.type==='tap'"
                       ><label
-                        >X 坐标<input
+                        >X 比例<input
                           v-model.number="b.x"
                           @input="syncScript"
                           type="number"
-                          min="0" /></label
+                          min="0"
+                          max="1"
+                          step="0.01" /></label
                       ><label
-                        >Y 坐标<input
+                        >Y 比例<input
                           v-model.number="b.y"
                           @input="syncScript"
                           type="number"
-                          min="0" /></label></template
+                          min="0"
+                          max="1"
+                          step="0.01" /></label></template
                     ><template v-if="b.type==='swipe'"
                       ><label
                         >起点 X<input
                           v-model.number="b.x1"
                           @input="syncScript"
                           type="number"
-                          min="0" /></label
+                          min="0"
+                          max="1"
+                          step="0.01" /></label
                       ><label
                         >起点 Y<input
                           v-model.number="b.y1"
                           @input="syncScript"
                           type="number"
-                          min="0" /></label
+                          min="0"
+                          max="1"
+                          step="0.01" /></label
                       ><label
                         >终点 X<input
                           v-model.number="b.x2"
                           @input="syncScript"
                           type="number"
-                          min="0" /></label
+                          min="0"
+                          max="1"
+                          step="0.01" /></label
                       ><label
                         >终点 Y<input
                           v-model.number="b.y2"
                           @input="syncScript"
                           type="number"
-                          min="0" /></label
+                          min="0"
+                          max="1"
+                          step="0.01" /></label
                       ><label
                         >时长(ms)<input
                           v-model.number="b.duration"
@@ -530,8 +546,8 @@
               <p v-if="!presets.length" class="muted">暂无预设流程</p>
               <div class="language-help">
                 <h2>自动化语言</h2>
-                <code>OPEN 包名</code><code>WAIT 毫秒</code><code>TAP X Y</code
-                ><code>SWIPE X1 Y1 X2 Y2 时长</code><code>TEXT 文本</code
+                <code>OPEN 包名</code><code>WAIT 毫秒</code><code>TAP X比例 Y比例</code
+                ><code>SWIPE X1比例 Y1比例 X2比例 Y2比例 时长</code><code>TEXT 文本</code
                 ><code>BACK / HOME</code>
               </div>
             </aside>

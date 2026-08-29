@@ -62,8 +62,8 @@
 
 ```json
 {"type":"openApp","packageName":"com.example.app"}
-{"type":"tap","x":300,"y":500}
 {"type":"tapRelative","x":0.5,"y":0.5}
+{"type":"swipeRelative","x1":0.5,"y1":0.68,"x2":0.5,"y2":0.32,"duration":350}
 {"type":"inputText","text":"hello"}
 {"type":"globalAction","action":"BACK"}
 ```
@@ -90,13 +90,13 @@ npm start
 # 打开设置后返回桌面
 OPEN com.android.settings
 WAIT 1000
-TAP 100 200
+TAP 0.5 0.5
 TEXT hello world
 BACK
 HOME
 ```
 
-屏幕墙会订阅全部在线设备。点击“控制”进入单机画面，直接点击画面即可按设备原始分辨率映射坐标；如果勾选了多台设备，同一坐标会群发到勾选设备。
+屏幕墙会订阅全部在线设备。点击“控制”进入单机画面，所有点击和滑动坐标都使用 `0-1` 的屏幕宽高比例，并由 Android App 按当前屏幕尺寸换算；如果勾选了多台设备，同一相对位置会群发到勾选设备。
 
 开发环境默认值只便于首次联调，公网部署前必须设置强随机 token、启用 HTTPS/WSS，并在反向代理限制请求体和连接速率。
 

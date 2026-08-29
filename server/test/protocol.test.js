@@ -13,9 +13,9 @@ import { friendlyDeviceToken } from "../src/auth.js";
 test("only accepts supported, bounded commands", () => {
   assert.equal(
     validCommand({
-      type: "tap",
-      x: 1,
-      y: 2,
+      type: "tapRelative",
+      x: 0.1,
+      y: 0.2,
     }),
     true,
   );
@@ -29,8 +29,8 @@ test("only accepts supported, bounded commands", () => {
   assert.equal(
     validCommand({
       type: "tap",
-      x: 100_001,
-      y: 2,
+      x: 100,
+      y: 200,
     }),
     false,
   );
@@ -88,7 +88,7 @@ test("only accepts supported, bounded commands", () => {
 test("parses the bounded automation DSL", () => {
   assert.deepEqual(
     parseAutomation(
-      "# demo\nOPEN com.example.app\nWAIT 500\nTAP 10 20\nTEXT hello world\nBACK",
+      "# demo\nOPEN com.example.app\nWAIT 500\nTAP 0.1 0.2\nTEXT hello world\nBACK",
     ),
     [
       {
@@ -102,9 +102,9 @@ test("parses the bounded automation DSL", () => {
       },
       {
         command: {
-          type: "tap",
-          x: 10,
-          y: 20,
+          type: "tapRelative",
+          x: 0.1,
+          y: 0.2,
         },
       },
       {
@@ -122,15 +122,16 @@ test("parses the bounded automation DSL", () => {
     ],
   );
   assert.throws(() => parseAutomation("WAIT 999999"), /等待时间/);
+  assert.throws(() => parseAutomation("TAP 100 200"), /参数无效/);
   assert.throws(() => parseAutomation("SHELL rm"), /指令无效/);
-  assert.deepEqual(parseAutomation("SWIPE 10 20 30 40 500"), [
+  assert.deepEqual(parseAutomation("SWIPE 0.5 0.8 0.5 0.2 500"), [
     {
       command: {
-        type: "swipe",
-        x1: 10,
-        y1: 20,
-        x2: 30,
-        y2: 40,
+        type: "swipeRelative",
+        x1: 0.5,
+        y1: 0.8,
+        x2: 0.5,
+        y2: 0.2,
         duration: 500,
       },
     },
